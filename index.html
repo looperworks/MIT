@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seth Looper</title>
+<style>
+@font-face {
+  font-family: 'CircularStd';
+  src: url('CircularStd-Book.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'CircularStd';
+  src: url('CircularStd-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'CircularStd';
+  src: url('CircularStd-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'CircularStd';
+  src: url('CircularStd-Black.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+}
+:root {
+  --bg: #f7f6f3;
+  --text: #111;
+  --text-light: #999;
+  --text-mid: #666;
+  --accent: #D93025;
+  --panel-bg: rgba(255,255,255,0.92);
+  --panel-w: 370px;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  background:var(--bg); color:var(--text);
+  font-family: 'CircularStd', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  font-size:14.5px; line-height:1.6; font-weight:400;
+  -webkit-font-smoothing:antialiased;
+}
+#app { display:flex; width:100%; height:100%; }
+
+/* ===== MAP ===== */
+.map { flex:1; position:relative; overflow:hidden; cursor:default; }
+.map.dragging { cursor:grabbing; }
+.map canvas {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  z-index:0; pointer-events:none;
+}
+.map svg {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; z-index:1;
+}
+.map svg path {
+  fill:none; stroke:var(--text); stroke-width:1;
+  opacity:0; transition:opacity 800ms cubic-bezier(0.16,1,0.3,1);
+}
+.map svg path.visible { opacity:1; }
+.map svg path.dashed {
+  stroke-dasharray:4,4;
+  opacity:0; transition:opacity 800ms cubic-bezier(0.16,1,0.3,1);
+}
+.map svg path.dashed.visible { opacity:0.55; }
+.map svg path.dotted {
+  stroke-dasharray:2,3;
+  opacity:0; transition:opacity 800ms cubic-bezier(0.16,1,0.3,1);
+}
+.map svg path.dotted.visible { opacity:0.4; }
+.map svg path.line-dimmed.visible { opacity:0.08 !important; }
+.map svg path.dashed.line-dimmed.visible { opacity:0.06 !important; }
+.map svg path.dotted.line-dimmed.visible { opacity:0.04 !important; }
+
+/* Cross-link glow when connected to current node */
+.map svg path.cross-active {
+  stroke-width:1.5;
+  filter:drop-shadow(0 0 2px currentColor);
+  transition:opacity 600ms, filter 600ms, stroke-width 600ms;
+}
+.map svg path.dashed.cross-active.visible { opacity:0.75; }
+.map svg path.dotted.cross-active.visible { opacity:0.6; }
+
+/* Traveling dot along cross-links */
+.map svg circle.flow-dot {
+  fill:var(--text); opacity:0;
+  transition:opacity 400ms;
+}
+.map svg circle.flow-dot.visible { opacity:0.5; }
+
+/* ===== NODES ===== */
+.n {
+  position:absolute; display:flex; flex-direction:column; align-items:center;
+  cursor:grab; z-index:2; opacity:0;
+  transform:translate(-50%,-50%);
+  pointer-events:none; user-select:none;
+}
+.n.previously-visible {
+  opacity:1; pointer-events:auto;
+  transition: left 800ms cubic-bezier(0.16,1,0.3,1),
+              top 800ms cubic-bezier(0.16,1,0.3,1),
+              opacity 400ms,
+              transform 600ms cubic-bezier(0.16,1,0.3,1);
+}
+.n.newly-visible {
+  opacity:1; pointer-events:auto;
+  transform:translate(-50%,-50%) scale(1);
+  transition: opacity 700ms, transform 700ms cubic-bezier(0.16,1,0.3,1);
+}
+.n.entering-small {
+  opacity:0; transform:translate(-50%,-50%) scale(0.55);
+}
+.n.leaving {
+  opacity:0; pointer-events:none;
+  transform:translate(-50%,-50%) scale(0.7);
+  transition: opacity 350ms, transform 350ms;
+}
+
+.n .sh {
+  width:14px; height:14px; border-radius:50%;
+  background:var(--node-color);
+  transition:transform 0.25s cubic-bezier(0.16,1,0.3,1);
+  flex-shrink:0; position:relative;
+}
+.n:hover .sh, .n.cur .sh { transform:scale(1.18); }
+.n.visited .sh { box-shadow:0 0 0 2.5px var(--bg), 0 0 0 4px var(--node-color); }
+.n.visited.cur .sh { box-shadow:none; }
+
+.n .lb {
+  margin-top:5px; font-size:12.5px; font-weight:600;
+  color:var(--text); text-align:center; white-space:nowrap;
+  letter-spacing:0.01em;
+}
+.n .sub {
+  font-size:9.5px; font-weight:400; color:var(--text-light);
+  text-transform:uppercase; letter-spacing:0.08em;
+  text-align:center; white-space:nowrap;
+  opacity:0; max-height:0; overflow:hidden;
+  transition:opacity 0.3s, max-height 0.3s;
+}
+.n:hover .sub, .n.cur .sub {
+  opacity:1; max-height:20px;
+}
+
+/* Root node */
+.n-root .sh {
+  width:22px; height:22px; border-radius:50%;
+  background:transparent; border:none; overflow:visible;
+}
+.n-root .sh svg { animation:spin 12s linear infinite; width:22px; height:22px; }
+@keyframes spin { to { transform:rotate(360deg) } }
+.n-root .lb { font-size:14px; font-weight:700; }
+
+/* Path (category) nodes */
+.n-path .sh {
+  width:28px; height:28px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:700; color:#fff;
+}
+.n-path .lb { font-size:13px; font-weight:600; }
+
+/* Active label color */
+.n.cur .lb { color:var(--node-color); }
+
+/* Focus hierarchy — dim unrelated nodes when navigating */
+.n.dimmed {
+  opacity:0.35 !important;
+  filter:grayscale(0.5);
+  transition: left 800ms cubic-bezier(0.16,1,0.3,1),
+              top 800ms cubic-bezier(0.16,1,0.3,1),
+              opacity 600ms, filter 600ms;
+}
+.n.focused {
+  opacity:1 !important;
+  transition: left 800ms cubic-bezier(0.16,1,0.3,1),
+              top 800ms cubic-bezier(0.16,1,0.3,1),
+              opacity 400ms;
+}
+
+/* ===== PANEL ===== */
+.panel {
+  width:var(--panel-w); height:100%; background:var(--panel-bg);
+  border-left:1px solid rgba(0,0,0,0.06);
+  overflow-y:auto; overflow-x:hidden;
+  padding:32px 28px; flex-shrink:0;
+  transition:opacity 0.25s;
+}
+.panel.fading { opacity:0; }
+.panel::-webkit-scrollbar { width:4px; }
+.panel::-webkit-scrollbar-thumb { background:rgba(0,0,0,0.12); border-radius:2px; }
+
+.panel-header {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:20px; padding-bottom:16px;
+  border-bottom:1px solid rgba(0,0,0,0.08);
+}
+.panel-header .logo {
+  display:flex; align-items:center; gap:8px;
+  font-size:12px; font-weight:600; letter-spacing:0.08em;
+  text-transform:uppercase; color:var(--text-mid);
+}
+.panel-header .logo .dot {
+  width:10px; height:10px; border:1.5px solid var(--accent);
+  border-radius:50%; position:relative;
+}
+.panel-header .logo .dot::after {
+  content:''; position:absolute; top:50%; left:50%;
+  width:3px; height:3px; background:var(--accent); border-radius:50%;
+  transform:translate(-50%,-50%);
+}
+.panel-toggle {
+  font-size:18px; cursor:pointer; color:var(--text-light);
+  background:none; border:none; line-height:1;
+}
+
+.panel-desc {
+  font-size:13.5px; line-height:1.65; color:var(--text-mid);
+  margin-bottom:24px;
+}
+.panel-desc a { color:var(--text); text-decoration:underline; cursor:pointer; }
+
+/* Category sections */
+.cat { border-top:1px solid rgba(0,0,0,0.06); }
+.cat-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 0; cursor:pointer; user-select:none;
+}
+.cat-header:hover .cat-title { color:var(--text); }
+.cat-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-right:10px; }
+.cat-title {
+  font-size:12px; font-weight:600; letter-spacing:0.08em;
+  text-transform:uppercase; color:var(--text-mid);
+  transition:color 0.2s; flex:1;
+}
+.cat-toggle { font-size:16px; color:var(--text-light); transition:transform 0.3s; }
+.cat.open .cat-toggle { transform:rotate(45deg); }
+.cat-body { max-height:0; overflow:hidden; transition:max-height 0.4s cubic-bezier(0.16,1,0.3,1); }
+.cat.open .cat-body { max-height:2000px; }
+.cat-desc { font-size:13px; line-height:1.6; color:var(--text-mid); padding-bottom:12px; }
+.cat-item { padding:8px 0; cursor:pointer; }
+.cat-item:hover .cat-item-title { color:var(--text); }
+.cat-item-title { font-size:13.5px; font-weight:500; color:var(--text); transition:color 0.2s; }
+.cat-item-sub { font-size:10px; font-weight:400; color:var(--text-light); text-transform:uppercase; letter-spacing:0.06em; }
+
+/* Detail view */
+.detail-back {
+  font-size:11px; color:var(--text-light); cursor:pointer;
+  margin-bottom:16px; display:inline-flex; align-items:center; gap:4px;
+  letter-spacing:0.04em; text-transform:uppercase; font-weight:500;
+}
+.detail-back:hover { color:var(--text); }
+.detail-title { font-size:18px; font-weight:600; color:var(--text); margin-bottom:4px; line-height:1.3; }
+.detail-subtitle { font-size:10.5px; color:var(--text-light); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:16px; }
+.detail-body { font-size:13.5px; line-height:1.65; color:var(--text-mid); }
+.detail-body p { margin-bottom:12px; }
+.detail-body strong { color:var(--text); font-weight:600; }
+.detail-body .stat { display:flex; gap:20px; margin:16px 0; flex-wrap:wrap; }
+.detail-body .stat-item { text-align:center; }
+.detail-body .stat-num { font-size:22px; font-weight:700; color:var(--text); }
+.detail-body .stat-label { font-size:10px; color:var(--text-light); text-transform:uppercase; letter-spacing:0.06em; }
+.detail-body .quote { border-left:2px solid var(--text-light); padding-left:14px; margin:16px 0; font-style:italic; color:var(--text-mid); }
+/* Gallery carousel */
+.detail-body .img-hero { width:100%; border-radius:6px; margin:12px 0 4px; display:block; cursor:zoom-in; transition:opacity 0.2s; }
+.detail-body .img-hero:hover { opacity:0.85; }
+.gallery { margin:0 -4px 14px; }
+.gallery-count { font-size:9px; color:var(--text-light); text-transform:uppercase; letter-spacing:0.08em; padding:0 4px; margin-bottom:5px; }
+.gallery-scroll { display:flex; gap:6px; overflow-x:auto; padding:2px 4px 8px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+.gallery-scroll::-webkit-scrollbar { height:2px; }
+.gallery-scroll::-webkit-scrollbar-thumb { background:#ccc; border-radius:2px; }
+.gallery-img { flex:0 0 auto; width:140px; height:105px; border-radius:3px; overflow:hidden; scroll-snap-align:start; cursor:zoom-in; transition:opacity 0.2s; position:relative; }
+.gallery-img:hover { opacity:0.8; }
+.gallery-img img { width:100%; height:100%; object-fit:cover; display:block; }
+.gallery-img .zoom-icon { position:absolute; bottom:5px; right:5px; width:18px; height:18px; background:rgba(0,0,0,0.5); border-radius:50%; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s; pointer-events:none; }
+.gallery-img .zoom-icon svg { width:10px; height:10px; }
+.gallery-img:hover .zoom-icon { opacity:1; }
+.detail-body .img-caption { font-size:10px; color:var(--text-light); text-align:center; margin:2px 0 12px; text-transform:uppercase; letter-spacing:0.06em; }
+/* Grid (converted to gallery carousel by JS) */
+.detail-body .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:14px 0; }
+.detail-body .img-grid.cols-3 { grid-template-columns:1fr 1fr 1fr; }
+.detail-body .img-grid img { width:100%; border-radius:4px; display:block; object-fit:cover; cursor:zoom-in; transition:opacity 0.2s; }
+.detail-body .img-grid img:hover { opacity:0.85; }
+
+/* Lightbox */
+.lightbox { position:fixed; inset:0; z-index:1000; background:rgba(10,10,10,0); pointer-events:none; visibility:hidden; transition:background 0.4s; display:flex; align-items:center; justify-content:center; }
+.lightbox.open { background:rgba(10,10,10,0.95); pointer-events:auto; visibility:visible; cursor:zoom-out; }
+.lightbox img { max-width:90vw; max-height:85vh; object-fit:contain; border-radius:5px; opacity:0; transform:scale(0.92); transition:opacity 0.4s, transform 0.4s; }
+.lightbox.open img { opacity:1; transform:scale(1); }
+.lightbox .lb-close { position:absolute; top:20px; right:24px; font-size:20px; color:rgba(255,255,255,0.6); cursor:pointer; z-index:1001; font-weight:300; transition:color 0.2s; }
+.lightbox .lb-close:hover { color:#fff; }
+.lightbox .lb-nav { position:absolute; top:50%; transform:translateY(-50%); font-size:28px; color:rgba(255,255,255,0.5); cursor:pointer; z-index:1001; user-select:none; padding:20px 16px; transition:color 0.2s; font-weight:300; }
+.lightbox .lb-nav:hover { color:#fff; }
+.lightbox .lb-prev { left:8px; }
+.lightbox .lb-next { right:8px; }
+.lightbox .lb-counter { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); font-size:10px; color:rgba(255,255,255,0.5); letter-spacing:0.08em; text-transform:uppercase; }
+.lightbox .lb-info { position:absolute; bottom:20px; left:24px; }
+.lightbox .lb-title { font-size:13px; font-weight:500; color:#fff; text-shadow:0 0 5px rgba(0,0,0,0.5); }
+.lightbox .lb-sub { font-size:9px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:0.07em; margin-top:1px; }
+.detail-body .video-wrap { position:relative; width:100%; padding-bottom:56.25%; margin:14px 0; border-radius:6px; overflow:hidden; background:#000; }
+.detail-body .video-wrap iframe { position:absolute; top:0; left:0; width:100%; height:100%; border:none; }
+.detail-body .video-label { font-size:11px; font-weight:600; color:var(--text); margin-top:10px; }
+.detail-body .launch-btn { display:inline-flex; align-items:center; gap:6px; margin:10px 0 16px; padding:8px 18px; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#fff; background:var(--node-color, var(--text)); border-radius:100px; text-decoration:none; transition:opacity 0.2s, transform 0.15s; }
+.detail-body .launch-btn:hover { opacity:0.85; transform:translateY(-1px); }
+.detail-body .launch-btn svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+
+.contact-links { margin-top:8px; }
+.contact-links a { display:block; font-size:13px; color:var(--text-mid); text-decoration:none; padding:4px 0; transition:color 0.2s; }
+.contact-links a:hover { color:var(--text); }
+
+@media (max-width:900px) {
+  #app { flex-direction:column; }
+  .map { height:55vh; }
+  .panel { width:100%; height:45vh; border-left:none; border-top:1px solid rgba(0,0,0,0.06); }
+  :root { --panel-w:100%; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <section class="map" id="map"><canvas id="canvas"></canvas><svg id="svg"></svg></section>
+  <div class="panel" id="panel"></div>
+</div>
+<div class="lightbox" id="lightbox" onclick="lbClose()">
+  <span class="lb-close" onclick="lbClose()">&times;</span>
+  <span class="lb-nav lb-prev" onclick="event.stopPropagation();lbPrev()">&#8249;</span>
+  <span class="lb-nav lb-next" onclick="event.stopPropagation();lbNext()">&#8250;</span>
+  <img id="lb-img" onclick="event.stopPropagation();lbNext()">
+  <div class="lb-counter" id="lb-counter"></div>
+  <div class="lb-info"><div class="lb-title" id="lb-title"></div><div class="lb-sub" id="lb-sub"></div></div>
+</div>
+
+<script>
+// ============================================
+// DATA
+// ============================================
+const D = {
+  bio: "I design listening environments\u2014spatial, conversational, and computational systems that help people make sense of who they are becoming. Trained as an architect, I build reflective interfaces, facilitated workshops, and human/AI dialogue prototypes that give shape to scattered experience.\n\nAs program manager at Dartmouth College's Center for Career Design and adjunct faculty at Kent State University, I have field-tested these systems with hundreds of participants. My research asks how spatial design, narrative data, and AI-mediated conversation can build empathy, trust, and understanding across learning communities.",
+
+  nodes: {
+    sl:       {t:"root",       title:"Seth Looper",              sub:"Listening \u00b7 Sensemaking \u00b7 Design"},
+    dial:     {t:"path",       title:"Dialogic Prototypes",       sub:"Human/AI Deliberation Systems", n:1, color:"#EF6C00",
+      desc:"Prototype-driven deliberation systems combining reflection, exploration, and intentional action. AI positioned as a conversational partner in structured sensemaking."},
+    narr:     {t:"path",       title:"Identity & Narrative Systems", sub:"Facilitated Group Sensemaking", n:2, color:"#43A047",
+      desc:"Facilitated workshops and tactile systems for making sense of scattered experience. Sorting, clustering, and structured dialogue move participants from individual reflection toward shared understanding."},
+    refl:     {t:"path",       title:"Sensemaking Environments",  sub:"Spatial Interfaces for Reflection", n:3, color:"#1565C0",
+      desc:"Spatial listening environments that slow pacing, support externalization, and help people see patterns in their own experience. Structured spaces where reflection takes physical form."},
+    res:      {t:"path",       title:"Research",                  sub:"CCC \u00b7 MIT Media Lab",      n:4, color:"#7B1FA2",
+      desc:"Design-based inquiry into listening systems, narrative sensemaking, and human/AI deliberation. From lab prototype to field pilot."},
+
+    dw:       {t:"reflection", title:"DartWorld",                 sub:"Individual Sensemaking at Scale",
+      detail:`<img class="img-hero" src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/72153759-329f-4933-baf6-5ca2ff45a125/Design+Your+Life+25S_Page_01.jpg" alt="DartWorld — Design Your Life"><p>DartWorld is a spatial listening environment for individual sensemaking at scale. Developed with Dartmouth's DALI Lab and field-piloted with 98 students, the platform integrates reflective onboarding, a navigable 3D world, and a journaling pinboard. Students externalize their thinking, reflect on lived experience, and build self-understanding within a designed space\u2014one where reflection has room to breathe.</p><div class="img-grid"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765067206601-04CL2DFF4SQJZK3WOQK3/dartworld+3.png" alt="DartWorld 3D environment"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765067287284-MPU2LB1BBMT44TA6UC2A/dartworld+4.png" alt="DartWorld interface"></div><div class="img-caption">DartWorld 3D navigable environment</div><div class="stat"><div class="stat-item"><div class="stat-num">98</div><div class="stat-label">Field Pilot</div></div><div class="stat-item"><div class="stat-num">2.3\u21924.2</div><div class="stat-label">Clarity Shift</div></div><div class="stat-item"><div class="stat-num">90+</div><div class="stat-label">Journal Entries</div></div><div class="stat-item"><div class="stat-num">70+</div><div class="stat-label">Identity Themes</div></div></div><p>Where Fora captures and structures speech data from community conversations, DartWorld captures and structures narrative data from individual reflective journeys. The platform applies the same principle at a different scale: designed environments that make sensemaking visible.</p><div class="quote">\"Walking around made reflection feel less intimidating. It helped me see things more clearly.\"</div>`},
+    ob:       {t:"reflection", title:"Reflective Onboarding",    sub:"Scaffolded Narrative Data Collection",
+      detail:`<p>A nine-step structured listening protocol that moves from concrete personal details toward early identity themes. Each step scaffolds deeper reflection, collecting narrative data on background, experiences, interests, and goals. Three reflective archetypes (Explorer, Seeker, Achiever) act as cognitive frames, helping students locate themselves before entering the spatial environment.</p><div class="img-grid cols-3"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765066054440-M56ZUQHO5NPZTCVDAJZD/2.jpg" alt="Onboarding step 2"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765066055686-CUXRC3OMSWCR28L6FTJP/3.jpg" alt="Onboarding step 3"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765066055915-97HRXZZBYLC33H1IL7BC/4.jpg" alt="Onboarding step 4"></div><div class="img-grid cols-3"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765066056811-LUMRGS2WLRF2U9F30639/5.jpg" alt="Onboarding step 5"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765066057137-V961II8BAIEYFWCX8QY0/6.jpg" alt="Onboarding step 6"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765066058072-BRW1HBJW3FR58WE8RJRL/7.jpg" alt="Onboarding step 7"></div><div class="img-grid cols-3"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765066058408-T3S0UU4JXDKJ4GP6U164/8.jpg" alt="Onboarding step 8"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765066059221-4LOLJTJTI1HMFJQHGVPX/9.jpg" alt="Onboarding step 9"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765066054591-LG1OXB9ZXBUZ3IUV2OBV/10.jpg" alt="Onboarding step 10"></div><div class="img-caption">9-step reflective onboarding sequence</div><p>Each question initiates a structured dialogue between the student and themselves. Each prompt is designed to draw out honest reflection within a facilitated structure\u2014a principle shared with realtalk's conversation protocols.</p>`},
+    pb:       {t:"reflection", title:"Journaling Pinboard",      sub:"Longitudinal Narrative Data",
+      detail:`<div class="img-grid"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765067205389-0946JKQRBJI3EA1D7LZP/campus.jpg" alt="DartWorld campus view"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/3c39f212-5744-416e-916f-073ae0925144/dartworld+2.png" alt="Pinboard interface"></div><div class="img-caption">Navigable campus & journaling pinboard</div><p>The core sensemaking tool within DartWorld. Students write timestamped journal entries, return to earlier notes, and trace how their thinking evolves, generating a longitudinal record of narrative data. As reflections accumulate visually, patterns emerge: recurring motivations, emotional anchors, contradictions, evolving priorities.</p><p>Over time, the Pinboard becomes a personal map\u2014ideas linked, revisited, reinterpreted. What CCC studies as idea evolution in democratic deliberation, applied here to one person's narrative.</p>`},
+
+    im:       {t:"narrative",  title:"Identity Mapping Studio",  sub:"Tactile Sensemaking Workshop",
+      detail:`<img class="img-hero" src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/f3b3b7a8-5f83-4963-808d-add5016d3177/hero+image.jpg" alt="Identity Mapping Studio"><p>A facilitated group sensemaking studio where students deconstruct their r\u00e9sum\u00e9 into movable pieces, sort them into values, strengths, interests, and skills, then cluster and reorganize to reveal themes and through-lines. Tactile sorting, visual clustering, and structured reflective dialogue conducted in workshop settings where participants witness each other's narrative construction.</p><div class="img-grid"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052725543-K6TENJ0F9V1WO950FPSK/1.jpeg" alt="Workshop session"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052727009-8XU1C2R6RO2EHTEZ73TI/3.jpeg" alt="Tile sorting"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052737935-JMOHN1APCH9PFY2SRR48/4.jpeg" alt="Clustering activity"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052743750-0AIZ89D2DSUCVM69NFYU/5.jpeg" alt="Student mapping"></div><div class="img-caption">Identity mapping workshop sessions</div><div class="stat"><div class="stat-item"><div class="stat-num">60+</div><div class="stat-label">Field Pilot Maps</div></div><div class="stat-item"><div class="stat-num">2.1\u21924.4</div><div class="stat-label">Clarity Shift</div></div><div class="stat-item"><div class="stat-num">85%</div><div class="stat-label">Clearer Narrative</div></div><div class="stat-item"><div class="stat-num">100%</div><div class="stat-label">Meaningful Insight</div></div></div><p>Identity treated as a representational system. The facilitated process draws out patterns, tensions, and grounded narratives\u2014and the group setting means participants hear each other's stories, not just their own.</p><div class="quote">\"My r\u00e9sum\u00e9 describes what I did, but not who I am.\"</div>`},
+    ts:       {t:"narrative",  title:"Tile Sorting & Clustering", sub:"Spatial Reasoning for Identity Data",
+      detail:`<div class="img-grid"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052748847-VDKSI2KSVRU7W7A9A8ZK/6.jpeg" alt="Tile sorting"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052756512-DKK1RD4CR1SHODNIFOJR/7.jpeg" alt="Clustering"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052760330-YICBHZHBQXOJC5G6WKCV/11.jpeg" alt="Student work"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052778108-YH9MWRRFUUNX44KNRBBM/8.jpeg" alt="Tile arrangement"></div><div class="img-caption">Tactile sorting & clustering process</div><p>Students work with their experiences as physical material: sorting tiles, clustering themes, and discovering patterns through spatial arrangement. This tactile process externalizes narrative data that would otherwise remain implicit.</p><div class="img-grid"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052824824-1T2PC7UESPPMCDW62SH7/9.jpeg" alt="Sorting in progress"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052837044-B2WAQK0QRCU6XZ8ISKZ6/10.jpeg" alt="Categorization"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052849974-47PL1RYGGXDYI2Q39LZ4/15.jpeg" alt="Values sorting"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052823709-M190AFJQLX5OQODBJ9VA/19.jpeg" alt="Workshop activity"></div><div class="img-caption">Students sorting experiences into values, strengths, interests, skills</div><p>Categorization into values, strengths, interests, and skills, followed by clustering to reveal themes, tensions, and through-lines. Spatial reasoning and cognitive offloading: people understand identity more clearly when they can move and arrange its components visually. The group setting adds a deliberative dimension\u2014participants negotiate meaning together, finding common language for individual experiences.</p>`},
+    ow:       {t:"narrative",  title:"OneWord",                   sub:"Constrained-Choice Identity Compression",
+      detail:`<a class="launch-btn" href="https://looperworks.github.io/oneword/" target="_blank"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>Try Interactive Prototype</a><div class="img-grid cols-3"><img src="images/ow-thumb-choice.png" alt="Binary choice screen"><img src="images/ow-thumb-compress.png" alt="Compression animation"><img src="images/ow-thumb-result.png" alt="Result reveal"></div><div class="img-caption">Binary choice \u2192 Compression animation \u2192 Identity reveal</div><p style="margin-bottom:8px"></p><img class="img-hero" src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/f3b3b7a8-5f83-4963-808d-add5016d3177/hero+image.jpg" alt="OneWord Protocol"><p>OneWord is a constrained-choice sensemaking instrument that compresses narrative identity into a single word. Six binary decisions across three dimensions (Values, Strengths, Skills) surface a pattern in participants' preferences, producing one of 64 possible identity anchors in under 60 seconds. Participants are not told who they are. The system helps them listen to their own choices and discover the pattern that emerges.</p><div class="stat"><div class="stat-item"><div class="stat-num">500+</div><div class="stat-label">Students Tested</div></div><div class="stat-item"><div class="stat-num">6</div><div class="stat-label">Binary Choices</div></div><div class="stat-item"><div class="stat-num">64</div><div class="stat-label">Possible Words</div></div><div class="stat-item"><div class="stat-num">60s</div><div class="stat-label">Completion Time</div></div></div><p>Each binary choice functions as a micro-deliberation, a compressed version of the facilitated reflection studied in Citizens' Assemblies and realtalk sessions. After the sixth choice, the interface performs a visual compression: selected words scatter, converge, and collapse into a single result, making the distillation process visible. The compression mirrors FORAGE's approach: condensing conversational fragments into something whole.</p><p>The result opens three ways to look deeper. A reflective prompt asks participants to question their result: <em>Does this feel right? What voice is missing?</em>, an idea borrowed from the Empty Chair framework. A dimension reveal lets participants see how their choices across Values, Strengths, and Skills produced their word\u2014showing the internal logic. An evolution tracker stores results across sessions, showing how identity anchors shift over time, the same question CCC asks about idea evolution in deliberation.</p><div class="quote">"I spent an hour trying to write my story. Then I took the quiz and the word it gave me unlocked everything."</div><p>Developed with the Dartmouth Center for Career Design, OneWord completes a sequence within the Identity and Narrative Systems path: Identity Mapping externalizes, Tile Sorting categorizes, Pattern Discovery finds themes, and OneWord compresses. Four tools mapping the Narrative by Design methodology (Intake, Categorize, Compress, Rewrite) onto discrete sensemaking instruments.</p>`},
+    pd:       {t:"narrative",  title:"Pattern Discovery",         sub:"Narrative Compression through Dialogue",
+      detail:`<div class="img-grid"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052789700-8RHH0UWGHUE0FPP41881/12.jpeg" alt="Pattern mapping"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052796050-8URRUOKJ9KYAMNTUQTY6/16.jpeg" alt="Theme distillation"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052807896-BKRD0JQRDZUWXR2HDWKO/17.jpeg" alt="Narrative compression"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052808808-NRPC9UWW4NOVT6QR5OQQ/21.jpeg" alt="Final patterns"></div><div class="img-caption">Pattern discovery & narrative distillation</div><div class="img-grid cols-3"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052862694-WQJI0Z9LGD7BKOS0KUAY/18.jpeg" alt="Dialogue session"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052863499-R6EC9JHCDCDO3BTNCHHM/181.jpeg" alt="Reflective dialogue"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765052843072-8HXD6XEGI111QHJ7PMGK/20.jpeg" alt="Narrative construction"></div><div class="img-caption">Dialogue, interpretation & narrative construction</div><p>Structured reflective dialogue and narrative compression exercises that distill identity from paragraph to sentence to one word. Collaborative sensemaking that gets at what matters beneath accumulated experience.</p><p>Emergent themes across cohorts: Mentoring and Supportive Leadership, Communication and Teaching, Creativity and Self-Driven Creation, Problem-Solving and Systems Thinking, Value Blind Spots, Identity Contradictions.</p><div class="quote">\"I'm driven by mentoring, communication, and creative problem-solving. Everything I've done reflects that.\"</div><p>The arc from fragmentation to pattern to narrative mirrors conversation analysis\u2014raw dialogue becomes emergent themes becomes understanding. People see themselves more clearly when given the space and structure to look.</p>`},
+
+    cdl:      {t:"dialogue",   title:"Career Design Lab",        sub:"Structured Deliberation System",
+      detail:`<img class="img-hero" src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/211d6407-c1f5-4880-b520-ca784e35303c/career+design+lab.png" alt="Career Design Lab"><p>A deliberation system for identity sensemaking and intentional decision-making. Built from the ground up as a living prototype, iterating each semester through design cycles of observation, synthesis, and deployment. Students practice the structured conversation skills that underpin constructive communication: listening to themselves before engaging with others.</p><div class="img-grid"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765154501115-K43RNI0OWVIXX87U1KC4/strengths.jpg" alt="Strengths tool"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765154409685-D7XE1GKUENEJ0L0K6DK6/skills.jpg" alt="Skills tool"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765154418869-JFWYF653K71SO5VSFY7F/value+card.jpg" alt="Value cards"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765154414946-D9DJV17QUXV0OR0CRFP7/design+matrix.jpg" alt="Design matrix"></div><div class="img-caption">CDL reflective tools: strengths, skills, values, design matrix</div><p>Four-phase deliberation process: <strong>Reflect \u2192 Explore \u2192 Decide \u2192 Act</strong>. Structured facilitation that moves participants from listening through collaborative problem-solving to commitment, the same progression studied in tech-enhanced citizens' assemblies.</p><p>The design goal is always the same: help people see what's inside, make sense of it, and know what to do next.</p>`},
+    aig:      {t:"dialogue",   title:"AI Exploration Generator",  sub:"LLM-Mediated Narrative Synthesis",
+      detail:`<img class="img-hero" src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765162140260-NGGS420ENR9FN0OE1W1D/AI.jpg" alt="AI Exploration Generator overview"><p>Built on an OpenAI ChatGPT-based platform, the AI Exploration Generator guides students through a seven-part reflective sequence. Students explore energy, values, strengths, academic curiosities, worldview themes, preferred work styles, and meaningful experiences. The system synthesizes their responses into a set of possible pathways\u2014not predictions, but starting points students can interpret through dialogue. AI surfaces patterns; students make meaning.</p><div class="stat"><div class="stat-item"><div class="stat-num">7</div><div class="stat-label">Guided Prompts</div></div><div class="stat-item"><div class="stat-num">12</div><div class="stat-label">Paths Generated</div></div><div class="stat-item"><div class="stat-num">Phase 2</div><div class="stat-label">of Launch Studio</div></div></div><p><strong>The Seven Prompts:</strong></p><p>1. What energizes you?<br>2. What do you value most?<br>3. What strengths feel most natural to you?<br>4. What academic topics or projects have engaged you the most?<br>5. What big issues or questions in the world matter to you?<br>6. How do you prefer to work?<br>7. What skills and experiences do you bring?</p><div class="img-grid cols-3"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157532849-CKWMTWAMWEZ2TD0JJWS5/AI+exploration+generator+1.png" alt="AI Generator step 1"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157532674-GY0HD6VD7KXZJK0VN5R2/AI+exploration+generator+2.png" alt="AI Generator step 2"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157536000-2HNA7ORWQPPN9TLK7YHG/AI+exploration+generator+3.png" alt="AI Generator step 3"></div><div class="img-grid cols-3"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157535980-FV7HGZ046S657WRPURJ0/AI+exploration+generator+4.png" alt="AI Generator step 4"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157538542-1CFZGZF8FH971W2MR82V/AI+exploration+generator+5.png" alt="AI Generator step 5"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157538723-CSVI6MTBG3TRP8C7812E/AI+exploration+generator+6.png" alt="AI Generator step 6"></div><div class="img-grid cols-3"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157541360-UOC7JUS0FONLD7GCPWGA/AI+exploration+generator+7.png" alt="AI Generator step 7"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157541563-ERUUW911Y2Y7RJKFDZOD/AI+exploration+generator+8.png" alt="AI Generator step 8"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157542797-WJT7GK0B9QFP9IFR7JO8/AI+exploration+generator+9.png" alt="AI Generator step 9"></div><div class="img-grid cols-3"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157544751-NKL98KWPC6LMFSN3RYIO/AI+exploration+generator+10.png" alt="AI Generator step 10"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157545739-T6XXU81OT3PE08YRJUUU/AI+exploration+generator+11.png" alt="AI Generator step 11"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157546866-HEOQ4G9UYCU77ZX5Y8BN/AI+exploration+generator+12.png" alt="AI Generator step 12"></div><div class="img-grid cols-3"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157547432-MHWI083WW2DHOOLL8II3/AI+exploration+generator+13.png" alt="AI Generator step 13"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157549175-8JO986A1ZB9YU73LGC5H/AI+exploration+generator+14.png" alt="AI Generator step 14"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765157549568-K40PT48MVF9LG2LSD6AX/AI+exploration+generator+15.png" alt="AI Generator step 15"></div><div class="img-caption">AI Exploration Generator \u2014 complete 15-screen reflective dialogue flow</div><p>The current system is linear and text-based. These constraints point toward a bigger question: how can retrieval-augmented generation and spatially organized interfaces help people find patterns in their own conversation data and navigate uncertainty? The same question FORAGE and CommunityLM are asking, applied to one person\u2019s story.</p>`},
+    ls:       {t:"dialogue",   title:"Launch Studio",             sub:"Human/AI Deliberation Prototype",
+      detail:`<div class="img-grid"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765154501115-K43RNI0OWVIXX87U1KC4/strengths.jpg" alt="Strengths deck"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765154418869-JFWYF653K71SO5VSFY7F/value+card.jpg" alt="Value cards"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765154422731-ODWYDFN21CN89WB8BSYK/energy+mapping+.jpg" alt="Energy mapping"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765154414946-D9DJV17QUXV0OR0CRFP7/design+matrix.jpg" alt="Design matrix"></div><div class="img-caption">Tactile tools: strengths, values, energy mapping, decision matrix</div><p>The Launch Studio is a unified, 120-minute structured experience that brings coherence and intention to the Career Design Lab. Built through iterative prototyping, it takes a series of individual tools and connects them into a clear pathway: reflection, exploration, and forward movement.</p><p>Rather than engaging with activities in isolation, students enter a guided sequence that helps them understand themselves, recognize patterns in their experiences, and turn those insights into direction.</p><p><strong>Why it was needed:</strong> Students appreciated the individual CDL tools but experienced them as disconnected. Engagement was uneven\u2014without a defined journey, many drifted in and out without integrating insights. There was no unified artifact, so students had no single place to hold the arc of their development over time.</p><div class="stat"><div class="stat-item"><div class="stat-num">120</div><div class="stat-label">Minutes</div></div><div class="stat-item"><div class="stat-num">3</div><div class="stat-label">Phases</div></div><div class="stat-item"><div class="stat-num">12</div><div class="stat-label">Paths Generated</div></div><div class="stat-item"><div class="stat-num">2</div><div class="stat-label">Next Steps</div></div></div><p><strong>Phase 1: Discover</strong> \u2014 Facilitated tactile labs for identity foundations: values cards, strengths decks, energy mapping boards. Students surface what matters to them, what they\u2019re good at, and what gives them energy.</p><p><strong>Phase 2: Explore</strong> \u2014 AI-mediated dialogue via the Exploration Generator. Students respond to seven reflective prompts, and the system synthesizes their answers into 12 potential career paths\u2014not predictions, but starting points for interpretation.</p><p><strong>Phase 3: Decide & Act</strong> \u2014 Structured deliberation with decision matrices and mind maps. Students weigh options, sketch possible futures, and leave with two concrete next steps and a plan.</p><div class="img-grid"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765155115855-LPMYRFZZCXCZWJWCWRGS/mind+mapping+5.jpg" alt="Mind mapping"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765155124978-HVMMYK191X8CA2YH612Y/mind+mapping+3.jpg" alt="Mind mapping detail"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765155115250-INYO2IFBJ0MG7OJVANUP/mind+mapping.jpg" alt="Mind mapping overview"><img src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/1765155130062-TQ7QMI8OK6A7O1H18ADE/mind+mapping+2.jpg" alt="Mind mapping session"></div><div class="img-caption">Mind mapping & decision-making in the Decide & Act phase</div><p>The Launch Studio is the clearest expression of CDL\u2019s purpose so far: helping students see what\u2019s inside, make sense of it, and know what to do next. Students report greater clarity, reduced anxiety, and a stronger sense of agency. But it\u2019s not a final model\u2014each semester is a new design cycle, testing structure, refining flow, and rebuilding what needs to change.</p>`},
+
+    rq1:      {t:"research",   title:"Listening Infrastructure",  sub:"Research Question 1",
+      detail:`<p><strong>How can spatial listening environments and AI-mediated dialogue deepen self-reflection during key transitions, and how might individual sensemaking tools connect to broader conversation networks?</strong></p><img class="img-hero" src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/eb253fdc-6b71-485c-9628-14f72e6f487f/phase+4.jpeg" alt="Research evolution"><div class="img-caption">From prototype to research \u2014 DartWorld evolution</div><p>Extends DartWorld and the AI Exploration Generator toward listening and conversation networks. Where Fora captures community speech data and realtalk facilitates small-group conversations, this research asks: what does structured listening infrastructure look like at the individual level? How can spatial interfaces capture, structure, and make sense of one person's evolving narrative?</p><img class="img-hero" src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/75de13a4-ab80-4dfc-957f-1834cd563407/Gemini_Generated_Image_pe0c01pe0c01pe0c.jpeg" alt="AI-mediated reflective interface concept"><div class="img-caption">Envisioning AI-mediated reflective systems</div><p>Methodology: design-based research. Prototyping and iterating reflective systems in authentic educational and community contexts. Lab to field pilot.</p>`},
+    rq2:      {t:"research",   title:"Narrative Sensemaking",     sub:"Research Question 2",
+      detail:`<p><strong>What design principles enable people to visualize, reframe, and computationally analyze their personal and collective narratives?</strong></p><p>Extends the Identity Mapping Studio into media understanding and narrative analysis. FORAGE uses retrieval-augmented generation to explore conversation data. Research on tracing idea evolution in deliberation maps how themes transform across dialogue. This work applies the same computational approaches to individual identity narratives: how do personal stories shift and consolidate, and when do they start to echo larger community patterns?</p><p>Building on CommunityLM's socially-aware language models\u2014systems that understand not just what someone says, but where their story sits within the stories around them.</p>`},
+    rq3:      {t:"research",   title:"Deliberation & Empathy",    sub:"Research Question 3",
+      detail:`<p><strong>How can reflection-oriented deliberation systems strengthen empathy, trust, and understanding, scaling from individual sensemaking to community-level constructive communication?</strong></p><p>Informed by communication as social infrastructure and tech-enhanced citizens' assemblies. The Empty Chair asks how AI can represent absent voices in collective decision-making. This work extends the question: can spatial environments, identity maps, and AI-mediated dialogue prepare people to show up differently in larger deliberative settings?</p><p>The through-line: what happens when individual reflection feeds into collective deliberation? From prototype to field deployment.</p><p>My engagement with CCC began through conversations with <strong>Marina Rakhilin</strong>, which introduced me to realtalk@MIT and where facilitated dialogue, narrative data, and AI meet.</p>`},
+
+    about:    {t:"info",       title:"Seth Looper",               sub:"Designer \u00b7 Researcher \u00b7 Educator",
+      detail:`<img class="img-hero" src="https://images.squarespace-cdn.com/content/v1/692bb0eaa3fb2e7e5588bf33/b5539ae2-ea82-4bc3-b9f3-a49752b0d9b7/Seth+Portrait_Updated-1.png" alt="Seth Looper" style="border-radius:6px;margin-bottom:16px"><p style="font-size:16px;font-weight:600;margin-bottom:4px"><a href="https://www.sethlooper.com" target="_blank" style="color:inherit;text-decoration:none;border-bottom:1px solid #999">Seth Looper</a></p><p style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Program Manager, Center for Career Design<br>Dartmouth College</p><p style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:14px">Adjunct Faculty, School of Architecture<br>Kent State University</p><p>Trained as an architect. Now building listening environments: spatial, conversational, and computational systems that help people make sense of who they are becoming.</p><p>Architecture taught me to bring order to uncertainty. But during a critique, a student's fragmented sketches made sense only after she told the story behind them. The design had been there all along, but the drawing could not reveal it without narrative.</p><p><strong>Design is not a process of control, but a practice of listening and empathy.</strong></p><p>At Dartmouth's Center for Career Design, I build and field-test listening environments and deliberation tools that help students construct narrative identity. At Kent State, I teach Architectural Narratives. The goal: systems that help people move from private reflection to shared understanding.</p>`},
+    contact:  {t:"info",       title:"Contact",                   sub:"Inquiries",
+      detail:`<p>I welcome conversations about design, identity work, collaboration, and new ideas. If something here sparked your curiosity, feel free to reach out.</p><div class="contact-links" style="margin-top:16px"><a href="https://www.sethlooper.com" target="_blank">sethlooper.com</a><a href="https://www.linkedin.com/in/seth-looper/" target="_blank">LinkedIn</a><a href="https://www.instagram.com/looperseth/" target="_blank">Instagram</a><a href="https://vimeo.com/sethlooper" target="_blank">Vimeo</a></div>`},
+    media:    {t:"path",       title:"Media",                     sub:"Narrative Practice",          n:5, color:"#00838F",
+      desc:"Videos and animations as sensemaking practice. Motion forces sequencing, distillation, and narrative compression. Not documentation but communicative acts."},
+    hdbl:     {t:"media",      title:"How Dots Become Lines",     sub:"Visual Framework for Narrative Emergence",
+      detail:`<div class="video-wrap"><iframe src="https://player.vimeo.com/video/419786916?title=0&byline=0&portrait=0" allow="autoplay; fullscreen" allowfullscreen></iframe></div><p>Short animation introducing the core metaphor: experiences as <em>dots</em>, meaning as the <em>lines</em> that connect them. A visual framework for understanding how narrative emerges from fragmented data. Used in facilitated workshops and advising sessions as a listening prompt.</p><p>Storyboarding, sequencing, and animating as narrative practice. Every frame an act of media understanding: what is essential, what is the throughline.</p>`},
+    mm:       {t:"media",      title:"Metamorphic",               sub:"Facilitated Workshop as Media",
+      detail:`<div class="video-wrap"><iframe src="https://player.vimeo.com/video/352883556?title=0&byline=0&portrait=0" allow="autoplay; fullscreen" allowfullscreen></iframe></div><p>Film documenting <em>Metamorphic</em>, a two-week architecture workshop co-created with <strong>Professor Sung Ho Kim</strong> (Sam Fox School). Drawing, making, iterating, reflecting. Each day introduced a new way of seeing and transforming ideas.</p><p>Directed and produced to capture more than final outcomes. The film traces how group sensemaking unfolds in real time. Media as a partner in sensemaking\u2014not just showing what happened, but making sense of it.</p>`},
+    ks:       {t:"info",       title:"Kent State University",     sub:"Adjunct Faculty",
+      detail:`<p>Architectural Narratives: a course built on facilitated sensemaking, helping architecture students articulate the intent behind their work through verbs, diagrams, and story.</p><p>Transformation happens when students construct meaning for themselves through structured dialogue rather than receiving knowledge. When scattered experiences find a narrative thread, learning starts to hold together. The real work is facilitating the conversation between student and material.</p>`},
+    ccc:      {t:"info",       title:"MIT Media Lab CCC",         sub:"Prof. Deb Roy"},
+  },
+
+  edges: [
+    ["sl","refl","s"],["sl","narr","s"],["sl","dial","s"],["sl","res","s"],
+    ["sl","about","s"],["sl","contact","d"],["sl","media","s"],["sl","ks","d"],["sl","ccc","s"],
+    ["refl","dw","s"],["refl","ob","s"],["refl","pb","s"],
+    ["narr","im","s"],["narr","ts","s"],["narr","pd","s"],["narr","ow","s"],
+    ["dial","cdl","s"],["dial","aig","s"],["dial","ls","s"],
+    ["res","rq1","s"],["res","rq2","s"],["res","rq3","s"],
+    ["media","hdbl","s"],["media","mm","s"],
+    ["dw","rq1","d"],["aig","rq1","d"],["pb","pd","x"],
+    ["im","pd","d"],["pd","ow","d"],["ow","aig","x"],["cdl","ls","d"],["media","refl","x"],["hdbl","narr","x"],
+    ["rq3","dial","d"],["ccc","res","s"],["about","ks","d"],
+  ],
+
+  sections: [
+    {key:"dial",  color:"#EF6C00", items:["ls","aig","cdl"]},
+    {key:"narr",  color:"#43A047", items:["ow","pd","im","ts"]},
+    {key:"refl",  color:"#1565C0", items:["dw","pb","ob"]},
+    {key:"res",   color:"#7B1FA2", items:["rq1","rq3","rq2"]},
+    {key:"media", color:"#00838F", items:["hdbl","mm"]},
+    {key:"info",  color:"#D93025", items:["about","ks","contact"]},
+  ]
+};
+
+// ============================================
+// ENGINE
+// ============================================
+const map = document.getElementById('map');
+const svg = document.getElementById('svg');
+const panel = document.getElementById('panel');
+
+const shapeRadius = {root:14, path:14, reflection:7, narrative:7, dialogue:7, research:7, media:7, info:7};
+const nodeColor = {
+  root:"#D93025", path:null,
+  reflection:"#1565C0", narrative:"#43A047", dialogue:"#EF6C00", research:"#7B1FA2", media:"#00838F", info:"#D93025"
+};
+
+let els = {};            // node id -> DOM element
+let visibleSet = new Set();
+let curFocusedSet = new Set(); // nodes in focus hierarchy (cur + direct connections)
+let cur = 'sl';
+let navigating = false;
+let justDragged = false;
+
+// Returns the Y-offset from element center to shape center
+// (shape is at top of flex column; element center is lower due to label+subtitle)
+function shapeYOffset(id) {
+  const el = els[id];
+  if (!el) return 0;
+  const sh = el.querySelector('.sh');
+  if (!sh) return 0;
+  const elH = el.offsetHeight;
+  const shH = sh.offsetHeight;
+  // Shape top is at 0 relative to element top
+  // Shape center is at shH/2
+  // Element center is at elH/2
+  return shH / 2 - elH / 2;
+}
+
+// Return position adjusted to shape center (not element center)
+function shapeCenterPos(id, pos) {
+  if (!pos) return pos;
+  return { x: pos.x, y: pos.y + shapeYOffset(id) };
+}
+let enterTimeouts = [];
+
+// Helpers
+function nd(id){ return D.nodes[id]; }
+function children(id){ return D.edges.filter(e=>e[0]===id).map(e=>e[1]); }
+function parent(id){
+  const e = D.edges.find(e=>e[1]===id && (e[2]==='s'));
+  return e ? e[0] : null;
+}
+function connected(id){
+  const s = new Set();
+  D.edges.forEach(e=>{
+    if(e[0]===id) s.add(e[1]);
+    if(e[1]===id) s.add(e[0]);
+  });
+  s.delete(id);
+  return [...s];
+}
+
+function getColor(id){
+  const n = nd(id);
+  if(n.color) return n.color;
+  return nodeColor[n.t] || '#D93025';
+}
+
+// ============================================
+// CREATE NODE ELEMENTS
+// ============================================
+function createNodes(){
+  Object.keys(D.nodes).forEach(id=>{
+    const n = nd(id);
+    const el = document.createElement('div');
+    el.className = `n n-${n.t}`;
+    const c = getColor(id);
+    el.style.setProperty('--node-color', c);
+    el.dataset.id = id;
+
+    let shapeHTML;
+    if(n.t === 'root'){
+      shapeHTML = `<div class="sh"><svg viewBox="0 0 30 30"><circle cx="15" cy="15" r="11" fill="none" stroke="${c}" stroke-width="1.2"/><line x1="15" y1="2" x2="15" y2="8" stroke="${c}" stroke-width="1"/><line x1="15" y1="22" x2="15" y2="28" stroke="${c}" stroke-width="1"/><line x1="2" y1="15" x2="8" y2="15" stroke="${c}" stroke-width="1"/><line x1="22" y1="15" x2="28" y2="15" stroke="${c}" stroke-width="1"/><circle cx="15" cy="15" r="3" fill="${c}"/></svg></div>`;
+    } else if(n.t === 'path'){
+      shapeHTML = `<div class="sh">${n.n}</div>`;
+    } else {
+      shapeHTML = `<div class="sh"></div>`;
+    }
+
+    el.innerHTML = `${shapeHTML}<div class="lb">${n.title}</div><div class="sub">${n.sub||''}</div>`;
+
+    // Click
+    el.addEventListener('click', ()=>{
+      if(justDragged) return;
+      go(id);
+    });
+
+    // Drag
+    el.addEventListener('mousedown', e=>{
+      if(e.button !== 0) return;
+      dragStart(id, e);
+    });
+
+    map.appendChild(el);
+    els[id] = el;
+  });
+}
+
+// ============================================
+// LAYOUT — radial around focused node
+// ============================================
+function layout(focus){
+  const r = map.getBoundingClientRect();
+  const cx = r.width * 0.42, cy = r.height * 0.50;
+  const pos = {}, vis = new Set();
+  vis.add(focus);
+  pos[focus] = {x:cx, y:cy};
+
+  const ch = children(focus), par = parent(focus), conn = connected(focus);
+  const ring = [];
+  if(par) ring.push(par);
+  ch.forEach(id=>{ if(!ring.includes(id)) ring.push(id) });
+  conn.forEach(id=>{ if(!ring.includes(id)) ring.push(id) });
+
+  const rad = Math.min(r.width*0.26, r.height*0.28, 220);
+  const sa = par ? -Math.PI*0.65 : -Math.PI/2;
+
+  ring.forEach((id,i)=>{
+    vis.add(id);
+    if(id === par){
+      const a = -Math.PI*0.78;
+      pos[id] = {x:cx+Math.cos(a)*rad*0.85, y:cy+Math.sin(a)*rad*0.8};
+    } else {
+      const a = sa + (i/ring.length)*Math.PI*2;
+      const j = Math.sin(id.charCodeAt(0)*2.3)*0.06;
+      pos[id] = {x:cx+Math.cos(a+j)*rad, y:cy+Math.sin(a+j)*rad};
+    }
+  });
+
+  // Grandchildren
+  const outerRad = rad * 1.4;
+  ring.forEach(pid=>{
+    const gc = children(pid);
+    gc.forEach(gcid=>{
+      if(vis.has(gcid)) return;
+      vis.add(gcid);
+      const pp = pos[pid];
+      const ba = Math.atan2(pp.y - cy, pp.x - cx);
+      const sibs = gc.filter(g=>!vis.has(g) || g===gcid);
+      const si = sibs.indexOf(gcid);
+      const sc = sibs.length || 1;
+      const off = (si - (sc-1)/2) * 0.5;
+      pos[gcid] = {x:cx+Math.cos(ba+off)*outerRad, y:cy+Math.sin(ba+off)*outerRad};
+    });
+  });
+
+  // Clamp
+  const pad = 60;
+  Object.values(pos).forEach(p=>{
+    p.x = Math.max(pad, Math.min(r.width - pad, p.x));
+    p.y = Math.max(pad, Math.min(r.height - pad, p.y));
+  });
+
+  return {pos, vis};
+}
+
+// ============================================
+// APPLY LAYOUT — three-state transitions
+// ============================================
+function apply(focus, animate){
+  enterTimeouts.forEach(tid=>clearTimeout(tid));
+  enterTimeouts = [];
+
+  const {pos, vis} = layout(focus);
+  const prevVisible = new Set(visibleSet);
+
+  const staying = new Set();
+  const entering = new Set();
+  const leaving = new Set();
+
+  vis.forEach(id=>{
+    if(prevVisible.has(id)) staying.add(id);
+    else entering.add(id);
+  });
+  prevVisible.forEach(id=>{
+    if(!vis.has(id)) leaving.add(id);
+  });
+
+  // Build focus set: current node + direct connections (skip on root)
+  const focusedSet = new Set();
+  if (focus !== 'sl') {
+    focusedSet.add(focus);
+    connected(focus).forEach(id => focusedSet.add(id));
+  }
+  curFocusedSet = focusedSet;
+
+  function applyFocusClass(id, el) {
+    el.classList.remove('focused', 'dimmed');
+    if (focus === 'sl' || focusedSet.has(id)) {
+      el.classList.add('focused');
+    } else {
+      el.classList.add('dimmed');
+    }
+  }
+
+  if(!animate){
+    // Initial load: stagger from center
+    const initArr = [...vis];
+    const fp = pos[focus]||{x:0,y:0};
+    initArr.sort((a,b)=>{
+      const pa=pos[a]||fp, pb=pos[b]||fp;
+      return Math.hypot(pa.x-fp.x,pa.y-fp.y) - Math.hypot(pb.x-fp.x,pb.y-fp.y);
+    });
+    initArr.forEach((id,i)=>{
+      const el = els[id]; if(!el) return;
+      el.classList.remove('previously-visible','newly-visible','leaving','cur','entering-small','focused','dimmed');
+      const p = pos[id];
+      el.style.left = p.x+'px';
+      el.style.top = p.y+'px';
+      el.classList.add('entering-small');
+      if(id===focus) el.classList.add('cur');
+      enterTimeouts.push(setTimeout(()=>{
+        el.classList.remove('entering-small');
+        el.classList.add('newly-visible');
+        applyFocusClass(id, el);
+      }, 60 + i*50));
+    });
+    // Hide others
+    Object.keys(D.nodes).forEach(id=>{
+      if(!vis.has(id)){
+        const el=els[id]; if(!el) return;
+        el.classList.remove('previously-visible','newly-visible','cur','focused','dimmed');
+        el.classList.add('leaving');
+      }
+    });
+    visibleSet = vis;
+    setTimeout(()=>drawLines(pos, vis, false), 200);
+    return;
+  }
+
+  // 1. LEAVING
+  leaving.forEach(id=>{
+    const el=els[id]; if(!el) return;
+    el.classList.remove('previously-visible','newly-visible','cur','focused','dimmed');
+    el.classList.add('leaving');
+  });
+
+  // 2. STAYING
+  staying.forEach(id=>{
+    const el=els[id]; if(!el) return;
+    el.classList.remove('newly-visible','leaving','entering-small');
+    el.classList.add('previously-visible');
+    const p = pos[id];
+    el.style.left = p.x+'px';
+    el.style.top = p.y+'px';
+    if(id===focus){el.classList.add('cur')} else {el.classList.remove('cur')}
+    applyFocusClass(id, el);
+  });
+
+  // 3. ENTERING
+  const focusPos = pos[focus]||{x:0,y:0};
+  const enterArr = [...entering];
+  enterArr.sort((a,b)=>{
+    const pa=pos[a]||focusPos, pb=pos[b]||focusPos;
+    return Math.hypot(pa.x-focusPos.x,pa.y-focusPos.y) - Math.hypot(pb.x-focusPos.x,pb.y-focusPos.y);
+  });
+  enterArr.forEach((id,i)=>{
+    const el=els[id]; if(!el) return;
+    el.classList.remove('previously-visible','newly-visible','leaving','focused','dimmed');
+    const p = pos[id];
+    el.style.transition = 'none';
+    el.style.left = p.x+'px';
+    el.style.top = p.y+'px';
+    el.classList.add('entering-small');
+    if(id===focus) el.classList.add('cur');
+    enterTimeouts.push(setTimeout(()=>{
+      el.style.transition = '';
+      el.classList.remove('entering-small');
+      el.classList.add('newly-visible');
+      applyFocusClass(id, el);
+    }, 120 + i*55));
+  });
+
+  visibleSet = vis;
+  drawLinesAnimated(pos, vis);
+}
+
+// ============================================
+// LINES
+// ============================================
+function shortenedLine(p1, p2, r1, r2){
+  const dx=p2.x-p1.x, dy=p2.y-p1.y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist < r1+r2) return null;
+  const ux=dx/dist, uy=dy/dist;
+  return {x1:p1.x+ux*r1, y1:p1.y+uy*r1, x2:p2.x-ux*r2, y2:p2.y-uy*r2};
+}
+
+function drawLines(pos, vis, immediate){
+  [...svg.childNodes].forEach(c => { if(c.id !== 'hover-line') svg.removeChild(c); });
+  D.edges.forEach(e=>{
+    const [a,b,type] = e;
+    if(!vis.has(a)||!vis.has(b)||!pos[a]||!pos[b]) return;
+    const r1 = shapeRadius[nd(a).t]||10;
+    const r2 = shapeRadius[nd(b).t]||10;
+    // Use shape center, not element center
+    const pa = shapeCenterPos(a, pos[a]);
+    const pb = shapeCenterPos(b, pos[b]);
+    const line = shortenedLine(pa, pb, r1, r2);
+    if(!line) return;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M${line.x1},${line.y1} L${line.x2},${line.y2}`);
+
+    const isCross = (type === 'd' || type === 'x');
+    const isActive = isCross && (a === cur || b === cur);
+    if(type==='d') path.classList.add('dashed');
+    if(type==='x') path.classList.add('dotted');
+    if(isActive) path.classList.add('cross-active');
+    if(curFocusedSet.size > 0 && (!curFocusedSet.has(a) || !curFocusedSet.has(b))) path.classList.add('line-dimmed');
+    svg.appendChild(path);
+    if(immediate){
+      path.classList.add('visible');
+    } else {
+      requestAnimationFrame(()=>requestAnimationFrame(()=>path.classList.add('visible')));
+    }
+  });
+}
+
+function drawLinesAnimated(pos, vis){
+  const existing = svg.querySelectorAll('path');
+  existing.forEach(p=>p.classList.remove('visible'));
+  setTimeout(()=>{
+    drawLines(pos, vis, false);
+  }, 200);
+}
+
+// ============================================
+// DRAG — spring physics
+// ============================================
+let dragId=null, dragSX=0, dragSY=0, isDragging=false;
+let restPos={}, dragPositions={};
+
+function dragStart(id, e){
+  dragId = id;
+  dragSX = e.clientX;
+  dragSY = e.clientY;
+  isDragging = false;
+  justDragged = false;
+
+  restPos = {};
+  Object.entries(els).forEach(([nid,el])=>{
+    if(visibleSet.has(nid)){
+      restPos[nid] = {x:parseFloat(el.style.left)||0, y:parseFloat(el.style.top)||0};
+    }
+  });
+  dragPositions = {...restPos};
+
+  document.addEventListener('mousemove', dragMove);
+  document.addEventListener('mouseup', dragEnd);
+}
+
+function dragMove(e){
+  if(!dragId) return;
+  const dx = e.clientX-dragSX, dy = e.clientY-dragSY;
+
+  if(!isDragging && Math.abs(dx)+Math.abs(dy)>5){
+    isDragging = true;
+    map.classList.add('dragging');
+    Object.entries(els).forEach(([nid,el])=>{
+      if(visibleSet.has(nid)) el.style.transition = 'none';
+    });
+  }
+  if(!isDragging) return;
+
+  // Dragged node follows exactly
+  dragPositions[dragId] = {
+    x: restPos[dragId].x + dx,
+    y: restPos[dragId].y + dy
+  };
+
+  // Direct connections: 35%
+  const direct = connected(dragId);
+  direct.forEach(cid=>{
+    if(restPos[cid]){
+      dragPositions[cid] = {
+        x: restPos[cid].x + dx*0.35,
+        y: restPos[cid].y + dy*0.35
+      };
+    }
+  });
+
+  // Indirect: 10%
+  const directSet = new Set(direct);
+  directSet.add(dragId);
+  direct.forEach(cid=>{
+    connected(cid).forEach(ccid=>{
+      if(!directSet.has(ccid) && restPos[ccid]){
+        dragPositions[ccid] = {
+          x: restPos[ccid].x + dx*0.10,
+          y: restPos[ccid].y + dy*0.10
+        };
+      }
+    });
+  });
+
+  // Apply
+  Object.entries(dragPositions).forEach(([nid,pos])=>{
+    const el = els[nid];
+    if(el && visibleSet.has(nid)){
+      el.style.left = pos.x+'px';
+      el.style.top = pos.y+'px';
+    }
+  });
+
+  drawDragLines();
+}
+
+function drawDragLines(){
+  [...svg.childNodes].forEach(c => { if(c.id !== 'hover-line') svg.removeChild(c); });
+  D.edges.forEach(e=>{
+    const [a,b,type] = e;
+    if(!visibleSet.has(a)||!visibleSet.has(b)) return;
+    const rawA = dragPositions[a]||restPos[a];
+    const rawB = dragPositions[b]||restPos[b];
+    if(!rawA||!rawB) return;
+    const r1 = shapeRadius[nd(a).t]||10;
+    const r2 = shapeRadius[nd(b).t]||10;
+    // Use shape center, not element center
+    const pa = shapeCenterPos(a, rawA);
+    const pb = shapeCenterPos(b, rawB);
+    const line = shortenedLine(pa, pb, r1, r2);
+    if(!line) return;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M${line.x1},${line.y1} L${line.x2},${line.y2}`);
+
+    const isCross = (type === 'd' || type === 'x');
+    const isActive = isCross && (a === cur || b === cur);
+    if(type==='d') path.classList.add('dashed');
+    if(type==='x') path.classList.add('dotted');
+    if(isActive) path.classList.add('cross-active');
+    if(curFocusedSet.size > 0 && (!curFocusedSet.has(a) || !curFocusedSet.has(b))) path.classList.add('line-dimmed');
+    path.classList.add('visible');
+    svg.appendChild(path);
+  });
+}
+
+function dragEnd(){
+  document.removeEventListener('mousemove', dragMove);
+  document.removeEventListener('mouseup', dragEnd);
+  if(isDragging){
+    justDragged = true;
+    setTimeout(()=>{ justDragged = false; }, 100);
+    // Spring back
+    map.classList.remove('dragging');
+    Object.entries(els).forEach(([nid,el])=>{
+      if(visibleSet.has(nid)){
+        el.style.transition = '';
+        el.style.left = restPos[nid].x+'px';
+        el.style.top = restPos[nid].y+'px';
+      }
+    });
+    // Recapture base positions for float animation
+    const {pos,vis} = layout(cur);
+    basePositions = pos;
+  }
+  isDragging = false;
+  dragId = null;
+}
+
+// ============================================
+// NAVIGATION
+// ============================================
+const visitedNodes = new Set();
+function go(id){
+  if(!nd(id) || navigating || justDragged) return;
+  navigating = true;
+  cur = id;
+  visitedNodes.add(id);
+  if (els[id]) els[id].classList.add('visited');
+  apply(id, true);
+  panelFade(()=>{
+    if(id==='sl') renderIndex();
+    else renderDetail(id);
+  });
+  setTimeout(()=>{ navigating = false; }, 900);
+}
+
+function panelFade(fn){
+  panel.classList.add('fading');
+  setTimeout(()=>{
+    fn();
+    panel.scrollTop = 0;
+    panel.classList.remove('fading');
+  }, 250);
+}
+
+// ============================================
+// PANEL RENDERING
+// ============================================
+function renderIndex(){
+  let html = `
+    <div class="panel-header">
+      <div class="logo"><div class="dot"></div>Index</div>
+      <button class="panel-toggle" onclick="document.querySelector('.panel-toggle').textContent=document.querySelector('.panel-toggle').textContent==='\u2212'?'+':'\u2212'" title="collapse">\u2212</button>
+    </div>
+    <div class="panel-desc">
+      ${D.bio.replace(/\n/g,'</p><p style="margin-top:10px">')}
+      <br><a onclick="go('about')" style="margin-top:6px;display:inline-block">Read more &rarr;</a>
+    </div>
+  `;
+
+  D.sections.forEach(sec=>{
+    const n = nd(sec.key);
+    const title = n ? n.title : (sec.key==='info' ? 'About' : sec.key);
+    const desc = n ? (n.desc||'') : '';
+    html += `<div class="cat" data-cat="${sec.key}">
+      <div class="cat-header" onclick="toggleCat(this)">
+        <div style="display:flex;align-items:center">
+          <div class="cat-dot" style="background:${sec.color}"></div>
+          <div class="cat-title">${title}</div>
+        </div>
+        <div class="cat-toggle">+</div>
+      </div>
+      <div class="cat-body">
+        ${desc ? `<div class="cat-desc">${desc}</div>` : ''}
+        ${sec.key==='info' ? renderContactItems() : sec.items.map(id=>{
+          const item = nd(id);
+          return `<div class="cat-item" onclick="go('${id}')">
+            <div class="cat-item-title">${item.title}</div>
+            <div class="cat-item-sub">${item.sub||''}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+
+  panel.innerHTML = html;
+}
+
+function renderContactItems(){
+  return `<div class="cat-item" onclick="go('about')"><div class="cat-item-title">Seth Looper</div><div class="cat-item-sub">Designer \u00b7 Researcher \u00b7 Educator</div></div>
+  <div class="cat-item" style="cursor:default"><div class="cat-item-title">Dartmouth College</div><div class="cat-item-sub">Program Manager, Center for Career Design</div></div>
+  <div class="cat-item" onclick="go('ks')"><div class="cat-item-title">Kent State University</div><div class="cat-item-sub">Adjunct Faculty</div></div>
+  <div class="contact-links">
+    <a href="https://www.sethlooper.com" target="_blank">sethlooper.com</a>
+    <a href="https://www.linkedin.com/in/seth-looper/" target="_blank">LinkedIn</a>
+    <a href="https://www.instagram.com/looperseth/" target="_blank">Instagram</a>
+    <a href="https://vimeo.com/sethlooper" target="_blank">Vimeo</a>
+  </div>`;
+}
+
+function renderDetail(id){
+  const n = nd(id);
+  if(!n) return;
+
+  // If it's a path (category), show index with that category open
+  if(n.t === 'path'){
+    renderIndex();
+    setTimeout(()=>{
+      const catEl = document.querySelector(`.cat[data-cat="${id}"]`);
+      if(catEl) { catEl.classList.add('open'); catEl.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+    }, 50);
+    return;
+  }
+
+  // If it's CCC, go to research question 3
+  if(id === 'ccc'){
+    renderDetail('rq3');
+    return;
+  }
+
+  // If it's contact, show index with info open
+  if(id === 'contact'){
+    renderIndex();
+    setTimeout(()=>{
+      const catEl = document.querySelector('.cat[data-cat="info"]');
+      if(catEl) { catEl.classList.add('open'); catEl.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+    }, 50);
+    return;
+  }
+
+  const detail = n.detail || `<p>${n.sub||''}</p>`;
+  panel.innerHTML = `
+    <div class="detail-back" onclick="go('sl')">\u2190 Back to Index</div>
+    <div class="detail-title">${n.title}</div>
+    <div class="detail-subtitle">${n.sub||''}</div>
+    <div class="detail-body">${detail}</div>
+  `;
+}
+
+function toggleCat(header){
+  const cat = header.closest('.cat');
+  const wasOpen = cat.classList.contains('open');
+  document.querySelectorAll('.cat.open').forEach(c=>c.classList.remove('open'));
+  if(!wasOpen) cat.classList.add('open');
+}
+
+// ============================================
+// FLOATING NODE ANIMATION + MAGNETIC PHYSICS
+// ============================================
+// Nodes gently breathe and drift. Mouse acts as a soft magnet.
+// SVG edge lines redraw each frame to follow the floating positions.
+
+let mapMouseX = -1000, mapMouseY = -1000;
+const MAGNET_RADIUS = 200;
+const MAGNET_STRENGTH = 0.09;
+const BREATHE_AMP = 9;    // max px drift — generous wandering
+const BREATHE_SPEED = 0.014;
+
+// Per-node animation state
+const floatState = {};  // id -> {phase, speedX, speedY, ampX, ampY, offX, offY}
+
+function initFloatState(id) {
+  if (floatState[id]) return;
+  const seed = id.charCodeAt(0) * 137 + (id.charCodeAt(1)||0) * 53;
+  floatState[id] = {
+    phaseX: (seed % 100) / 100 * Math.PI * 2,
+    phaseY: ((seed * 7) % 100) / 100 * Math.PI * 2,
+    speedX: BREATHE_SPEED + (((seed * 3) % 50) / 50) * 0.006,
+    speedY: BREATHE_SPEED + (((seed * 11) % 50) / 50) * 0.005,
+    ampX: BREATHE_AMP * (0.6 + (((seed * 13) % 50) / 50) * 0.8),
+    ampY: BREATHE_AMP * (0.6 + (((seed * 17) % 50) / 50) * 0.8),
+    offX: 0, offY: 0,
+    velX: 0, velY: 0,
+  };
+}
+
+// Store last-known layout positions for the floating loop
+let basePositions = {};
+
+function animateFloat() {
+  if (isDragging) { requestAnimationFrame(animateFloat); return; }
+
+  const livePos = {};
+
+  visibleSet.forEach(id => {
+    initFloatState(id);
+    const s = floatState[id];
+    const base = basePositions[id];
+    if (!base) return;
+
+    // Breathing oscillation
+    s.phaseX += s.speedX;
+    s.phaseY += s.speedY;
+    let targetOffX = Math.sin(s.phaseX) * s.ampX;
+    let targetOffY = Math.cos(s.phaseY) * s.ampY;
+
+    // Magnetic attraction toward mouse
+    const bx = base.x + targetOffX;
+    const by = base.y + targetOffY;
+    const dx = mapMouseX - bx;
+    const dy = mapMouseY - by;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < MAGNET_RADIUS && dist > 1) {
+      const pull = (1 - dist / MAGNET_RADIUS) * MAGNET_STRENGTH;
+      // Stronger pull for closer nodes
+      const easedPull = pull * pull * 8;
+      targetOffX += dx * easedPull;
+      targetOffY += dy * easedPull;
+    }
+
+    // Smooth interpolation (springy)
+    s.offX += (targetOffX - s.offX) * 0.08;
+    s.offY += (targetOffY - s.offY) * 0.08;
+
+    const finalX = base.x + s.offX;
+    const finalY = base.y + s.offY;
+
+    const el = els[id];
+    if (el) {
+      el.style.left = finalX + 'px';
+      el.style.top = finalY + 'px';
+    }
+
+    livePos[id] = { x: finalX, y: finalY };
+  });
+
+  // Redraw SVG lines to follow floating positions
+  drawLinesLive(livePos);
+
+  // Update hover preview line to track floating node
+  if (hoveredNodeId) updateHoverLine();
+
+  requestAnimationFrame(animateFloat);
+}
+
+function drawLinesLive(pos) {
+  // Remove all SVG children except the hover line
+  const children = [...svg.childNodes];
+  children.forEach(c => { if (c.id !== 'hover-line') svg.removeChild(c); });
+
+  const now = performance.now();
+
+  D.edges.forEach((e, ei) => {
+    const [a, b, type] = e;
+    if (!visibleSet.has(a) || !visibleSet.has(b) || !pos[a] || !pos[b]) return;
+    const r1 = shapeRadius[nd(a).t] || 10;
+    const r2 = shapeRadius[nd(b).t] || 10;
+    const pa = shapeCenterPos(a, pos[a]);
+    const pb = shapeCenterPos(b, pos[b]);
+    const line = shortenedLine(pa, pb, r1, r2);
+    if (!line) return;
+
+    const isCross = (type === 'd' || type === 'x');
+    // Cross-link is "active" when the current node is one of its endpoints
+    const isActive = isCross && (a === cur || b === cur);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${line.x1},${line.y1} L${line.x2},${line.y2}`);
+
+    if (type === 'd') path.classList.add('dashed');
+    if (type === 'x') path.classList.add('dotted');
+    if (isActive) path.classList.add('cross-active');
+    if (curFocusedSet.size > 0 && (!curFocusedSet.has(a) || !curFocusedSet.has(b))) path.classList.add('line-dimmed');
+    path.classList.add('visible');
+    svg.appendChild(path);
+
+    // Traveling flow dot on visible cross-links (not dimmed)
+    if (isCross && visibleSet.has(a) && visibleSet.has(b)) {
+      const isDimmed = curFocusedSet.size > 0 && (!curFocusedSet.has(a) || !curFocusedSet.has(b));
+      if (!isDimmed) {
+        // Each edge gets its own phase offset for variety
+        const speed = type === 'd' ? 0.00025 : 0.00018;
+        const phase = (ei * 0.37) % 1;
+        const t = ((now * speed) + phase) % 1;
+        const dx = line.x2 - line.x1, dy = line.y2 - line.y1;
+        const cx = line.x1 + dx * t;
+        const cy = line.y1 + dy * t;
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', cx);
+        dot.setAttribute('cy', cy);
+        dot.setAttribute('r', isActive ? 2.5 : 1.8);
+        dot.classList.add('flow-dot', 'visible');
+        if (isActive) dot.style.opacity = '0.7';
+        svg.appendChild(dot);
+      }
+    }
+  });
+}
+
+// Patch apply() to capture base positions for the float loop
+const _origApply = apply;
+apply = function(focus, animate) {
+  _origApply(focus, animate);
+  // Capture base positions after layout settles
+  setTimeout(() => {
+    const { pos } = layout(focus);
+    basePositions = pos;
+  }, animate ? 700 : 100);
+};
+
+// Mouse tracking on map
+map.addEventListener('mousemove', e => {
+  const rect = map.getBoundingClientRect();
+  mapMouseX = e.clientX - rect.left;
+  mapMouseY = e.clientY - rect.top;
+});
+map.addEventListener('mouseleave', () => {
+  mapMouseX = -1000;
+  mapMouseY = -1000;
+});
+
+// ============================================
+// HOVER IMAGE PREVIEW
+// ============================================
+// Shows a related image in the bottom-right corner when hovering a node.
+
+// Extract first image from each node's detail HTML
+const nodePreviewImages = {};
+Object.entries(D.nodes).forEach(([id, n]) => {
+  if (!n.detail) return;
+  const m = n.detail.match(/src="([^"]+)"/);
+  if (m) nodePreviewImages[id] = m[1];
+});
+
+// Create preview element (positioned near hovered node)
+const hoverPreview = document.createElement('div');
+hoverPreview.id = 'hover-preview';
+hoverPreview.innerHTML = '<img id="hover-preview-img"><div id="hover-preview-label"></div>';
+hoverPreview.addEventListener('click', () => {
+  if (hoveredNodeId) {
+    hideHoverPreview();
+    go(hoveredNodeId);
+  }
+});
+map.appendChild(hoverPreview);
+
+// Create SVG line connecting preview to node
+const hoverLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+hoverLine.id = 'hover-line';
+svg.appendChild(hoverLine);
+
+// Add styles for hover preview + connecting line
+const hoverStyle = document.createElement('style');
+hoverStyle.textContent = `
+#hover-preview {
+  position:absolute; z-index:5;
+  width:140px; border-radius:6px; overflow:hidden;
+  opacity:0; transform:scale(0.9);
+  transition: opacity 0.3s cubic-bezier(0.16,1,0.3,1),
+              transform 0.3s cubic-bezier(0.16,1,0.3,1),
+              left 0.15s ease-out, top 0.15s ease-out;
+  pointer-events:none;
+  box-shadow:0 4px 20px rgba(0,0,0,0.12);
+  background:var(--panel-bg);
+  cursor:pointer;
+}
+#hover-preview.visible {
+  opacity:1; transform:scale(1);
+  pointer-events:auto;
+}
+#hover-preview:hover {
+  transform:scale(1.04);
+  box-shadow:0 6px 24px rgba(0,0,0,0.18);
+}
+#hover-preview img {
+  width:100%; height:90px; object-fit:cover; display:block;
+}
+#hover-preview-label {
+  font-size:8.5px; font-weight:600; color:var(--text-mid);
+  text-transform:uppercase; letter-spacing:0.06em;
+  padding:4px 8px; text-align:center; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+}
+#hover-line {
+  stroke:var(--text-light); stroke-width:1;
+  stroke-dasharray:3,3; opacity:0;
+  transition:opacity 0.3s;
+}
+#hover-line.visible { opacity:0.5; }
+`;
+document.head.appendChild(hoverStyle);
+
+let hoverTimeout = null;
+let hideTimeout = null;
+let hoveredNodeId = null;
+let previewHovered = false;
+
+// Keep preview alive when mouse enters it
+hoverPreview.addEventListener('mouseenter', () => {
+  previewHovered = true;
+  clearTimeout(hideTimeout);
+});
+hoverPreview.addEventListener('mouseleave', () => {
+  previewHovered = false;
+  scheduleHide();
+});
+
+function getPreviewPosition(nodeEl) {
+  // Place preview offset from the node — pick best quadrant to avoid edges
+  const rect = map.getBoundingClientRect();
+  const nx = parseFloat(nodeEl.style.left) || 0;
+  // Adjust to shape center (top of node, not middle of full element)
+  const sh = nodeEl.querySelector('.sh');
+  const shOff = sh ? (sh.offsetHeight / 2 - nodeEl.offsetHeight / 2) : 0;
+  const ny = (parseFloat(nodeEl.style.top) || 0) + shOff;
+  const pw = 140, ph = 110; // preview dimensions
+  const gap = 50; // distance from node center
+
+  // Try below-right, then below-left, then above-right, then above-left
+  let px, py;
+  if (nx + gap + pw < rect.width - 20 && ny + gap + ph < rect.height - 20) {
+    px = nx + gap; py = ny + gap; // below-right
+  } else if (nx - gap - pw > 20 && ny + gap + ph < rect.height - 20) {
+    px = nx - gap - pw; py = ny + gap; // below-left
+  } else if (nx + gap + pw < rect.width - 20 && ny - gap - ph > 20) {
+    px = nx + gap; py = ny - gap - ph; // above-right
+  } else {
+    px = nx - gap - pw; py = ny - gap - ph; // above-left
+  }
+
+  // Clamp to map bounds
+  px = Math.max(12, Math.min(rect.width - pw - 12, px));
+  py = Math.max(12, Math.min(rect.height - ph - 12, py));
+  return { px, py, nx, ny };
+}
+
+function updateHoverLine() {
+  if (!hoveredNodeId) return;
+  const el = els[hoveredNodeId];
+  if (!el) return;
+  const { px, py, nx, ny } = getPreviewPosition(el);
+  // Line from node center to preview edge
+  const pcx = px + 70, pcy = py + 50;
+  hoverLine.setAttribute('x1', nx);
+  hoverLine.setAttribute('y1', ny);
+  hoverLine.setAttribute('x2', pcx);
+  hoverLine.setAttribute('y2', pcy);
+  // Ensure hover line stays in SVG
+  if (!hoverLine.parentNode) svg.appendChild(hoverLine);
+  // Also update preview position to track floating node
+  hoverPreview.style.left = px + 'px';
+  hoverPreview.style.top = py + 'px';
+}
+
+function showHoverPreview(id) {
+  const src = nodePreviewImages[id];
+  if (!src) return;
+  clearTimeout(hoverTimeout);
+  clearTimeout(hideTimeout);
+  hoveredNodeId = id;
+  const img = document.getElementById('hover-preview-img');
+  const label = document.getElementById('hover-preview-label');
+  img.src = src;
+  label.textContent = nd(id).title;
+
+  // Position near node
+  const el = els[id];
+  if (el) {
+    const { px, py } = getPreviewPosition(el);
+    hoverPreview.style.left = px + 'px';
+    hoverPreview.style.top = py + 'px';
+  }
+
+  hoverTimeout = setTimeout(() => {
+    hoverPreview.classList.add('visible');
+    hoverLine.classList.add('visible');
+  }, 180);
+}
+
+function scheduleHide() {
+  clearTimeout(hideTimeout);
+  hideTimeout = setTimeout(() => {
+    if (previewHovered) return; // mouse is on the preview, don't hide
+    hoveredNodeId = null;
+    hoverPreview.classList.remove('visible');
+    hoverLine.classList.remove('visible');
+  }, 300); // 300ms grace period to reach the preview
+}
+
+function hideHoverPreview() {
+  clearTimeout(hoverTimeout);
+  scheduleHide();
+}
+
+// Attach hover events to node elements (called from init after createNodes)
+function attachHoverEvents() {
+  Object.entries(els).forEach(([id, el]) => {
+    el.addEventListener('mouseenter', () => showHoverPreview(id));
+    el.addEventListener('mouseleave', hideHoverPreview);
+  });
+}
+
+window.addEventListener('resize', () => {
+  // Recapture base positions on resize
+  const { pos } = layout(cur);
+  basePositions = pos;
+});
+
+// ============================================
+// GALLERY + LIGHTBOX
+// ============================================
+const ZOOM_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/><line x1="4.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="6.5" y1="4.5" x2="6.5" y2="8.5"/></svg>';
+
+let lbImages = [];
+let lbIndex = 0;
+let lbNodeTitle = '';
+let lbNodeSub = '';
+
+function lbOpen(images, index, title, sub) {
+  lbImages = images;
+  lbIndex = index || 0;
+  lbNodeTitle = title || '';
+  lbNodeSub = sub || '';
+  lbShow();
+}
+
+function lbShow() {
+  const lb = document.getElementById('lightbox');
+  const img = document.getElementById('lb-img');
+  const counter = document.getElementById('lb-counter');
+  const titleEl = document.getElementById('lb-title');
+  const subEl = document.getElementById('lb-sub');
+
+  img.style.opacity = '0';
+  img.style.transform = 'scale(0.92)';
+  setTimeout(() => {
+    img.src = lbImages[lbIndex];
+    img.onload = () => {
+      img.style.opacity = '1';
+      img.style.transform = 'scale(1)';
+    };
+  }, 50);
+
+  counter.textContent = (lbIndex + 1) + ' / ' + lbImages.length;
+  titleEl.textContent = lbNodeTitle;
+  subEl.textContent = lbNodeSub;
+  lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function lbClose() {
+  const lb = document.getElementById('lightbox');
+  lb.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function lbNext() {
+  if (lbImages.length < 2) return;
+  lbIndex = (lbIndex + 1) % lbImages.length;
+  lbShow();
+}
+
+function lbPrev() {
+  if (lbImages.length < 2) return;
+  lbIndex = (lbIndex - 1 + lbImages.length) % lbImages.length;
+  lbShow();
+}
+
+document.addEventListener('keydown', e => {
+  const lb = document.getElementById('lightbox');
+  if (!lb.classList.contains('open')) return;
+  if (e.key === 'Escape') lbClose();
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); lbNext(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); lbPrev(); }
+});
+
+// Convert img-grids and img-heroes in detail-body into galleries after panel render
+function convertToGalleries() {
+  const body = document.querySelector('.detail-body');
+  if (!body) return;
+
+  // Get current node info for lightbox title
+  const titleEl = document.querySelector('.detail-title');
+  const subEl = document.querySelector('.detail-subtitle');
+  const nodeTitle = titleEl ? titleEl.textContent : '';
+  const nodeSub = subEl ? subEl.textContent : '';
+
+  // Collect all images in order
+  const allImgs = [];
+  const imgEls = body.querySelectorAll('img');
+  imgEls.forEach(img => {
+    if (img.closest('.video-wrap')) return; // skip video poster
+    allImgs.push(img.src);
+  });
+
+  if (allImgs.length === 0) return;
+
+  // Find consecutive img-grids and img-heroes, group them into galleries
+  const children = [...body.children];
+  let galleries = []; // [{startIdx, endIdx, images:[], caption:''}]
+  let current = null;
+
+  children.forEach((el, i) => {
+    const isImgGrid = el.classList && (el.classList.contains('img-grid'));
+    const isHero = el.tagName === 'IMG' && el.classList.contains('img-hero');
+    const isCaption = el.classList && el.classList.contains('img-caption');
+
+    if (isImgGrid || isHero) {
+      if (!current) current = { startIdx: i, endIdx: i, images: [], caption: '' };
+      else current.endIdx = i;
+
+      if (isHero) {
+        current.images.push(el.src);
+      } else {
+        el.querySelectorAll('img').forEach(img => current.images.push(img.src));
+      }
+    } else if (isCaption && current) {
+      current.caption = el.textContent;
+      current.endIdx = i;
+      galleries.push(current);
+      current = null;
+    } else {
+      if (current) {
+        galleries.push(current);
+        current = null;
+      }
+    }
+  });
+  if (current) galleries.push(current);
+
+  // Replace each gallery group in reverse order (so indices stay valid)
+  galleries.reverse().forEach(g => {
+    if (g.images.length === 0) return;
+
+    // Build gallery HTML
+    const galleryEl = document.createElement('div');
+    galleryEl.className = 'gallery';
+
+    const countEl = document.createElement('div');
+    countEl.className = 'gallery-count';
+    countEl.textContent = g.images.length + ' image' + (g.images.length > 1 ? 's' : '');
+    galleryEl.appendChild(countEl);
+
+    const scrollEl = document.createElement('div');
+    scrollEl.className = 'gallery-scroll';
+
+    g.images.forEach((src, imgIdx) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'gallery-img';
+
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = '';
+      img.loading = 'lazy';
+
+      const zoom = document.createElement('div');
+      zoom.className = 'zoom-icon';
+      zoom.innerHTML = ZOOM_SVG;
+
+      wrap.appendChild(img);
+      wrap.appendChild(zoom);
+
+      // Find global index of this image in allImgs
+      const globalIdx = allImgs.indexOf(src);
+      wrap.addEventListener('click', () => lbOpen(allImgs, globalIdx >= 0 ? globalIdx : 0, nodeTitle, nodeSub));
+
+      scrollEl.appendChild(wrap);
+    });
+
+    galleryEl.appendChild(scrollEl);
+
+    if (g.caption) {
+      const capEl = document.createElement('div');
+      capEl.className = 'img-caption';
+      capEl.textContent = g.caption;
+      galleryEl.appendChild(capEl);
+    }
+
+    // Remove old elements and insert gallery
+    const toRemove = [];
+    for (let i = g.startIdx; i <= g.endIdx; i++) {
+      toRemove.push(children[i]);
+    }
+    const insertBefore = children[g.endIdx + 1] || null;
+    toRemove.forEach(el => el.remove());
+    body.insertBefore(galleryEl, insertBefore);
+  });
+
+  // Make remaining hero images also clickable for lightbox
+  body.querySelectorAll('.img-hero').forEach(img => {
+    if (img.closest('.gallery')) return;
+    const globalIdx = allImgs.indexOf(img.src);
+    img.addEventListener('click', () => lbOpen(allImgs, globalIdx >= 0 ? globalIdx : 0, nodeTitle, nodeSub));
+  });
+}
+
+// Patch renderDetail to run gallery conversion after rendering
+const _origRenderDetail = renderDetail;
+renderDetail = function(id) {
+  _origRenderDetail(id);
+  setTimeout(convertToGalleries, 50);
+};
+
+// ============================================
+// INIT
+// ============================================
+function init(){
+  createNodes();
+  attachHoverEvents();
+  apply('sl', false);
+  renderIndex();
+  // Hide the canvas (no longer needed for particles)
+  canvas.style.display = 'none';
+  // Start floating animation after base positions are captured
+  setTimeout(() => {
+    const { pos } = layout('sl');
+    basePositions = pos;
+    animateFloat();
+  }, 300);
+}
+
+init();
+</script>
+</body>
+</html>

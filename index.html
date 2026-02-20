@@ -209,7 +209,7 @@ html, body {
   border-left:1px solid rgba(0,0,0,0.06);
   overflow-y:auto; overflow-x:hidden;
   padding:32px 28px; flex-shrink:0;
-  transition:opacity 0.25s;
+  transition:opacity 0.25s, width 0.4s cubic-bezier(0.4,0,0.2,1);
 }
 .panel.fading { opacity:0; }
 .panel::-webkit-scrollbar { width:4px; }
@@ -391,6 +391,11 @@ html, body {
 .gallery-img { transition:transform 0.2s ease, box-shadow 0.2s ease; }
 .detail-back { font-size:11.5px; margin-bottom:14px; }
 .gallery { margin:16px 0; }
+
+/* Expanded panel for project detail view */
+.panel.expanded { width:520px; }
+@media (max-width:900px) { .panel.expanded { width:100%; } }
+@media (min-width:1400px) { .panel.expanded { width:580px; } }
 </style>
 </head>
 <body>
@@ -999,6 +1004,7 @@ function panelFade(fn){
 // PANEL RENDERING
 // ============================================
 function renderIndex(){
+panel.classList.remove('expanded');
   let html = `
     <div class="panel-header">
       <div class="logo"><div class="dot"></div>Index</div>
@@ -1052,6 +1058,7 @@ function renderContactItems(){
 }
 
 function renderDetail(id){
+panel.classList.add('expanded');
   const n = nd(id);
   if(!n) return;
 

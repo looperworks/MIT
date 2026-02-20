@@ -275,31 +275,31 @@ html, body {
   letter-spacing:0.04em; text-transform:uppercase; font-weight:500;
 }
 .detail-back:hover { color:var(--text); }
-.detail-title { font-size:18px; font-weight:600; color:var(--text); margin-bottom:4px; line-height:1.3; }
-.detail-subtitle { font-size:10.5px; color:var(--text-light); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:16px; }
-.detail-body { font-size:13.5px; line-height:1.65; color:var(--text-mid); }
+.detail-title { font-size:20px; font-weight:600; color:var(--text); margin-bottom:4px; line-height:1.3; }
+.detail-subtitle { font-size:11.5px; color:#999; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:16px; }
+.detail-body { font-size:14.5px; line-height:1.7; color:#444; }
 .detail-body p { margin-bottom:12px; }
 .detail-body strong { color:var(--text); font-weight:600; }
 .detail-body .stat { display:flex; gap:20px; margin:16px 0; flex-wrap:wrap; }
 .detail-body .stat-item { text-align:center; }
 .detail-body .stat-num { font-size:22px; font-weight:700; color:var(--text); }
-.detail-body .stat-label { font-size:10px; color:var(--text-light); text-transform:uppercase; letter-spacing:0.06em; }
-.detail-body .quote { border-left:2px solid var(--text-light); padding-left:14px; margin:16px 0; font-style:italic; color:var(--text-mid); }
+.detail-body .stat-label { font-size:10.5px; color:var(--text-light); text-transform:uppercase; letter-spacing:0.06em; }
+.detail-body .quote { border-left:3px solid #E85D3A; padding-left:14px; margin:16px 0; font-style:italic; color:#555; }
 /* Gallery carousel */
 .detail-body .img-hero { width:100%; border-radius:6px; margin:12px 0 4px; display:block; cursor:zoom-in; transition:opacity 0.2s; }
 .detail-body .img-hero:hover { opacity:0.85; }
 .gallery { margin:0 -4px 14px; }
-.gallery-count { font-size:9px; color:var(--text-light); text-transform:uppercase; letter-spacing:0.08em; padding:0 4px; margin-bottom:5px; }
-.gallery-scroll { display:flex; gap:6px; overflow-x:auto; padding:2px 4px 8px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+.gallery-count { font-size:11px; color:var(--text-light); text-transform:uppercase; letter-spacing:0.08em; padding:0 4px; margin-bottom:5px; }
+.gallery-scroll { display:flex; gap:10px; overflow-x:auto; padding:2px 4px 8px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch;  padding-bottom:4px;}
 .gallery-scroll::-webkit-scrollbar { height:2px; }
 .gallery-scroll::-webkit-scrollbar-thumb { background:#ccc; border-radius:2px; }
-.gallery-img { flex:0 0 auto; width:140px; height:105px; border-radius:3px; overflow:hidden; scroll-snap-align:start; cursor:zoom-in; transition:opacity 0.2s; position:relative; }
+.gallery-img { flex:0 0 auto; width:280px; height:190px; border-radius:6px; overflow:hidden; scroll-snap-align:start; cursor:zoom-in; transition:opacity 0.2s; position:relative;  object-fit:cover; box-shadow:0 1px 6px rgba(0,0,0,0.08);}
 .gallery-img:hover { opacity:0.8; }
 .gallery-img img { width:100%; height:100%; object-fit:cover; display:block; }
 .gallery-img .zoom-icon { position:absolute; bottom:5px; right:5px; width:18px; height:18px; background:rgba(0,0,0,0.5); border-radius:50%; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s; pointer-events:none; }
 .gallery-img .zoom-icon svg { width:10px; height:10px; }
 .gallery-img:hover .zoom-icon { opacity:1; }
-.detail-body .img-caption { font-size:10px; color:var(--text-light); text-align:center; margin:2px 0 12px; text-transform:uppercase; letter-spacing:0.06em; }
+.detail-body .img-caption { font-size:11.5px; color:#888; text-align:center; margin:2px 0 12px; text-transform:uppercase; letter-spacing:0.06em; }
 /* Grid (converted to gallery carousel by JS) */
 .detail-body .img-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:14px 0; }
 .detail-body .img-grid.cols-3 { grid-template-columns:1fr 1fr 1fr; }
@@ -383,6 +383,14 @@ html, body {
 
 /* Screen reader only */
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+/* Improved readability */
+.detail-body p { margin-bottom:14px; }
+.detail-body p:last-child { margin-bottom:0; }
+.gallery-img:hover { transform:scale(1.02); box-shadow:0 2px 12px rgba(0,0,0,0.12); }
+.gallery-img { transition:transform 0.2s ease, box-shadow 0.2s ease; }
+.detail-back { font-size:11.5px; margin-bottom:14px; }
+.gallery { margin:16px 0; }
 </style>
 </head>
 <body>

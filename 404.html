@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page Not Found — Seth Looper</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <style>
+    @font-face { font-family: 'CircularStd'; src: url('CircularStd-Book.otf') format('opentype'); font-weight: 400; }
+    @font-face { font-family: 'CircularStd'; src: url('CircularStd-Medium.otf') format('opentype'); font-weight: 500; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'CircularStd', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f5f0eb; color: #333; display: flex; align-items: center;
+      justify-content: center; min-height: 100vh; text-align: center; padding: 2rem;
+    }
+    .container { max-width: 480px; }
+    .dot {
+      width: 60px; height: 60px; border-radius: 50%; background: #fff;
+      border: 2px solid #333; margin: 0 auto 2rem; position: relative;
+    }
+    .dot::after {
+      content: ''; width: 18px; height: 18px; border-radius: 50%;
+      background: #E85D3A; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    h1 { font-size: 2rem; font-weight: 500; margin-bottom: 0.75rem; }
+    p { font-size: 1rem; color: #666; line-height: 1.6; margin-bottom: 2rem; }
+    a {
+      display: inline-block; padding: 12px 28px; background: #333; color: #fff;
+      text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 14px;
+      transition: background 0.2s;
+    }
+    a:hover { background: #555; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="dot"></div>
+    <h1>Lost in the network</h1>
+    <p>This node doesn't exist yet. Let's get you back to a place that does.</p>
+    <a href="/">Back to the map</a>
+  </div>
+</body>
+</html>

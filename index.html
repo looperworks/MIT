@@ -68,7 +68,7 @@ html, body {
 #app { display:flex; width:100%; height:100%; }
 
 /* ===== MAP ===== */
-.map { flex:1; position:relative; overflow:hidden; cursor:default; }
+.map { flex:1; position:relative; overflow:hidden; touch-action:none; cursor:default; }
 .map.dragging { cursor:grabbing; }
 .map canvas {
   position:absolute; top:0; left:0; width:100%; height:100%;
@@ -1738,6 +1738,33 @@ function checkHash() {
 window.addEventListener('hashchange', checkHash);
 setTimeout(checkHash, 1000);
 
+
+// Mobile touch support - translate touch events to mouse events
+(function(){
+  var mapEl = document.getElementById('map');
+  if (!mapEl || !('ontouchstart' in window)) return;
+  var dragActive = false;
+  function touchToMouse(e) {
+    if (!e.changedTouches || !e.changedTouches[0]) return;
+    var touch = e.changedTouches[0];
+    var types = {touchstart:'mousedown',touchmove:'mousemove',touchend:'mouseup'};
+    var mouseType = types[e.type];
+    if (!mouseType) return;
+    if (e.type === 'touchstart') dragActive = true;
+    if (e.type === 'touchend') dragActive = false;
+    var sim = new MouseEvent(mouseType, {
+      bubbles: true, cancelable: true, view: window,
+      clientX: touch.clientX, clientY: touch.clientY,
+      screenX: touch.screenX, screenY: touch.screenY,
+      button: 0
+    });
+    touch.target.dispatchEvent(sim);
+    if (e.type === 'touchmove' && dragActive) e.preventDefault();
+  }
+  mapEl.addEventListener('touchstart', touchToMouse, {passive:false});
+  mapEl.addEventListener('touchmove', touchToMouse, {passive:false});
+  mapEl.addEventListener('touchend', touchToMouse, {passive:true});
+})();
 init();
 </script>
 </body>

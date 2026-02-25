@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <defs>
+    <radialGradient id="bg1" cx="20%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#1e7882" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+    <radialGradient id="bg2" cx="80%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#328c96" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+    <radialGradient id="bg3" cx="50%" cy="80%" r="50%">
+      <stop offset="0%" stop-color="#6ee0c0" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+    <radialGradient id="orb1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#3c969a" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+    <radialGradient id="orb2" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#5ed4d4" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+    <filter id="blur1" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="40"/>
+    </filter>
+    <filter id="blur2" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="30"/>
+    </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="rgba(0,0,0,0.4)"/>
+    </filter>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3ecf8e"/>
+      <stop offset="50%" stop-color="#5ed4d4"/>
+      <stop offset="100%" stop-color="#6ee0c0"/>
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3ecf8e" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#5ed4d4" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Dark background -->
+  <rect width="640" height="360" fill="#060a0a"/>
+
+  <!-- Aurora gradients -->
+  <rect width="640" height="360" fill="url(#bg1)"/>
+  <rect width="640" height="360" fill="url(#bg2)"/>
+  <rect width="640" height="360" fill="url(#bg3)"/>
+
+  <!-- Floating orbs -->
+  <circle cx="120" cy="90" r="120" fill="url(#orb1)" filter="url(#blur1)"/>
+  <circle cx="520" cy="280" r="100" fill="url(#orb2)" filter="url(#blur2)"/>
+  <ellipse cx="320" cy="180" rx="80" ry="80" fill="url(#bg3)" filter="url(#blur2)" opacity="0.5"/>
+
+  <!-- Title text -->
+  <text x="320" y="118" text-anchor="middle" font-family="'Space Grotesk', 'Inter', -apple-system, sans-serif" font-size="12" font-weight="400" fill="rgba(255,255,255,0.4)" letter-spacing="0.15em">DARTMOUTH CENTER FOR CAREER DESIGN</text>
+
+  <text x="320" y="155" text-anchor="middle" font-family="'Space Grotesk', 'Inter', -apple-system, sans-serif" font-size="30" font-weight="700" fill="url(#textGrad)" filter="url(#glow)">NARRATIVE BY DESIGN</text>
+
+  <!-- Subtitle -->
+  <text x="320" y="185" text-anchor="middle" font-family="'Space Grotesk', 'Inter', -apple-system, sans-serif" font-size="11" font-weight="400" fill="rgba(255,255,255,0.32)" letter-spacing="0.08em">COMPRESS · TEST · REWRITE · OWN YOUR STORY</text>
+
+  <!-- Gradient line accent -->
+  <line x1="210" y1="200" x2="430" y2="200" stroke="url(#lineGrad)" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Play button circle -->
+  <circle cx="320" cy="255" r="28" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="320" cy="255" r="27" fill="rgba(255,255,255,0.08)"/>
+
+  <!-- Play triangle -->
+  <polygon points="312,241 312,269 336,255" fill="rgba(255,255,255,0.8)"/>
+
+  <!-- Duration label -->
+  <text x="320" y="302" text-anchor="middle" font-family="'Space Grotesk', 'Inter', -apple-system, sans-serif" font-size="10" font-weight="400" fill="rgba(255,255,255,0.3)">2:37</text>
+</svg>

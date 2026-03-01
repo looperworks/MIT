@@ -1756,14 +1756,13 @@ window.addEventListener('load', function() {
 })();
 
 // === Deep linking (hash-based) ===
-var _origSelect = typeof selectNode === 'function' ? selectNode : null;
 var _hashFromGo = false;
 function checkHash() {
   if (_hashFromGo) { _hashFromGo = false; return; }
   var hash = window.location.hash.replace('#', '');
-  if (hash && typeof G !== 'undefined' && G.nodes) {
-    var found = G.nodes.find(function(n) { return n.id === hash; });
-    if (found && _origSelect) _origSelect(found);
+  if (hash && typeof go === 'function') {
+    _hashFromGo = true;
+    go(hash);
   }
 }
 window.addEventListener('hashchange', checkHash);

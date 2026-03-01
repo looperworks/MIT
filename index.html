@@ -987,8 +987,6 @@ function go(id){
   if(!nd(id) || navigating || justDragged) return;
   navigating = true;
   cur = id;
-  _hashFromGo = true;
-  if(id !== 'sl') window.location.hash = id; else history.replaceState(null,'',window.location.pathname);
   visitedNodes.add(id);
   if (els[id]) els[id].classList.add('visited');
   apply(id, true);
@@ -1756,18 +1754,32 @@ window.addEventListener('load', function() {
 })();
 
 // === Deep linking (hash-based) ===
-var _hashFromGo = false;
-function checkHash() {
-  if (_hashFromGo) { _hashFromGo = false; return; }
-  var hash = window.location.hash.replace('#', '');
-  if (hash && typeof go === 'function') {
-    _hashFromGo = true;
-    go(hash);
+(function(){
+  var fromGo = false;
+  // On page load, navigate to hash target after init settles
+  function applyHash(){
+    var h = location.hash.replace('#','');
+    if(h && typeof go==='function' && typeof nd==='function' && nd(h)){
+      fromGo = true;
+      go(h);
+    }
   }
-}
-window.addEventListener('hashchange', checkHash);
-function tryHash(n){ if(n<=0)return; var h=window.location.hash.replace('#',''); if(h && !navigating){ checkHash(); } else if(h){ setTimeout(function(){ tryHash(n-1); },500); } }
-setTimeout(function(){ tryHash(6); }, 1200);
+  // Update hash when navigating via go()
+  var _go = go;
+  go = function(id){
+    _go(id);
+    fromGo = true;
+    if(id && id !== 'sl') history.replaceState(null, '', '#' + id);
+    else history.replaceState(null, '', location.pathname);
+  };
+  // Browser back/forward
+  window.addEventListener('hashchange', function(){
+    if(fromGo){ fromGo = false; return; }
+    applyHash();
+  });
+  // Initial load
+  setTimeout(applyHash, 1200);
+})();
 
 
 // Mobile touch support - translate touch events to mouse events

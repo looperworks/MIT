@@ -1755,29 +1755,22 @@ window.addEventListener('load', function() {
 
 // === Deep linking (hash-based) ===
 (function(){
-  var fromGo = false;
-  // On page load, navigate to hash target after init settles
   function applyHash(){
     var h = location.hash.replace('#','');
     if(h && typeof go==='function' && typeof nd==='function' && nd(h)){
-      fromGo = true;
       go(h);
     }
   }
-  // Update hash when navigating via go()
+  // Wrap go() to update URL hash via replaceState (does not fire hashchange)
   var _go = go;
   go = function(id){
     _go(id);
-    fromGo = true;
     if(id && id !== 'sl') history.replaceState(null, '', '#' + id);
     else history.replaceState(null, '', location.pathname);
   };
-  // Browser back/forward
-  window.addEventListener('hashchange', function(){
-    if(fromGo){ fromGo = false; return; }
-    applyHash();
-  });
-  // Initial load
+  // Browser back/forward or manual hash change
+  window.addEventListener('hashchange', function(){ applyHash(); });
+  // Initial load - wait for init to complete
   setTimeout(applyHash, 1200);
 })();
 

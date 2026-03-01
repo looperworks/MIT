@@ -1766,7 +1766,8 @@ function checkHash() {
   }
 }
 window.addEventListener('hashchange', checkHash);
-setTimeout(checkHash, 1000);
+function tryHash(n){ if(n<=0)return; var h=window.location.hash.replace('#',''); if(h && !navigating){ checkHash(); } else if(h){ setTimeout(function(){ tryHash(n-1); },500); } }
+setTimeout(function(){ tryHash(6); }, 1200);
 
 
 // Mobile touch support - translate touch events to mouse events

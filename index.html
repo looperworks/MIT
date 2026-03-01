@@ -53,7 +53,7 @@
   --bg: #f7f6f3;
   --text: #111;
   --text-light: #999;
-  --text-mid: #666;
+  --text-mid: #555;
   --accent: #D93025;
   --panel-bg: rgba(255,255,255,0.92);
   --panel-w: 370px;
@@ -240,7 +240,7 @@ html, body {
 }
 
 .panel-desc {
-  font-size:13.5px; line-height:1.65; color:var(--text-mid);
+  font-size:14px; line-height:1.7; color:var(--text-mid);
   margin-bottom:24px;
 }
 .panel-desc a { color:var(--text); text-decoration:underline; cursor:pointer; }
@@ -277,14 +277,14 @@ html, body {
 .detail-back:hover { color:var(--text); }
 .detail-title { font-size:20px; font-weight:600; color:var(--text); margin-bottom:4px; line-height:1.3; }
 .detail-subtitle { font-size:11.5px; color:#999; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:16px; }
-.detail-body { font-size:14.5px; line-height:1.7; color:#444; }
-.detail-body p { margin-bottom:12px; }
+.detail-body { font-size:15px; line-height:1.75; color:#333; }
+.detail-body p { margin-bottom:16px; }
 .detail-body strong { color:var(--text); font-weight:600; }
 .detail-body .stat { display:flex; gap:20px; margin:16px 0; flex-wrap:wrap; }
 .detail-body .stat-item { text-align:center; }
 .detail-body .stat-num { font-size:22px; font-weight:700; color:var(--text); }
 .detail-body .stat-label { font-size:10.5px; color:var(--text-light); text-transform:uppercase; letter-spacing:0.06em; }
-.detail-body .quote { border-left:3px solid #E85D3A; padding-left:14px; margin:16px 0; font-style:italic; color:#555; }
+.detail-body .quote { border-left:3px solid #E85D3A; padding-left:14px; margin:20px 0; font-style:italic; color:#444; font-size:14.5px; line-height:1.7; }
 /* Gallery carousel */
 .detail-body .img-hero { width:100%; border-radius:6px; margin:12px 0 4px; display:block; cursor:zoom-in; transition:opacity 0.2s; }
 .detail-body .img-hero:hover { opacity:0.85; }
@@ -987,6 +987,8 @@ function go(id){
   if(!nd(id) || navigating || justDragged) return;
   navigating = true;
   cur = id;
+  _hashFromGo = true;
+  if(id !== 'sl') window.location.hash = id; else history.replaceState(null,'',window.location.pathname);
   visitedNodes.add(id);
   if (els[id]) els[id].classList.add('visited');
   apply(id, true);
@@ -1755,7 +1757,9 @@ window.addEventListener('load', function() {
 
 // === Deep linking (hash-based) ===
 var _origSelect = typeof selectNode === 'function' ? selectNode : null;
+var _hashFromGo = false;
 function checkHash() {
+  if (_hashFromGo) { _hashFromGo = false; return; }
   var hash = window.location.hash.replace('#', '');
   if (hash && typeof G !== 'undefined' && G.nodes) {
     var found = G.nodes.find(function(n) { return n.id === hash; });
